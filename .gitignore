@@ -1,0 +1,4 @@
+latest-dashboard.json
+.env
+.env.*
+__pycache__/

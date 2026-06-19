@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tesign - Pilotage stock et publicite</title>
+  <style>
+    :root { --bg:#f3f1ec; --panel:#fff; --ink:#151515; --muted:#77736b; --line:#dedbd4; --good:#176b4d; --bad:#b44235; --accent:#d8ff42; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 Inter,Segoe UI,Arial,sans-serif; }
+    header { display:flex; justify-content:space-between; align-items:end; gap:24px; padding:28px 32px 20px; border-bottom:1px solid var(--line); }
+    h1 { margin:0; font-size:30px; letter-spacing:-1px; }
+    h2 { margin:0 0 14px; font-size:17px; }
+    .eyebrow { color:var(--muted); font-size:11px; font-weight:700; letter-spacing:1.3px; text-transform:uppercase; }
+    .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
+    label { display:grid; gap:4px; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; }
+    input,button { height:38px; border:1px solid var(--line); border-radius:8px; background:#fff; padding:0 12px; color:var(--ink); }
+    button { background:var(--ink); color:#fff; border-color:var(--ink); cursor:pointer; font-weight:700; }
+    main { padding:22px 32px 40px; max-width:1600px; margin:auto; }
+    .status { display:flex; justify-content:space-between; color:var(--muted); margin-bottom:14px; }
+    .cards { display:grid; grid-template-columns:repeat(4,minmax(170px,1fr)); gap:12px; }
+    .card,.panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+    .card { padding:16px; min-height:105px; }
+    .card.primary { grid-column:span 2; border-color:#b9b5ab; }
+    .card strong { display:block; margin-top:10px; font-size:25px; letter-spacing:-.8px; }
+    .card small { color:var(--muted); }
+    .card .estimate-note { display:block; margin-top:4px; font-style:italic; }
+    .kpi-block { margin-top:12px; }
+    .kpi-grid { display:grid; grid-template-columns:repeat(5,minmax(150px,1fr)); gap:10px; }
+    .kpi-grid .card { background:var(--bg); }
+    .kpi-grid.sales { grid-template-columns:repeat(5,minmax(150px,1fr)); }
+    .kpi-grid.meta { grid-template-columns:repeat(3,minmax(180px,1fr)); }
+    .campaign-roas { margin-top:12px; }
+    .margin-box { margin-top:12px; padding:14px; border:1px solid var(--line); border-radius:10px; background:#faf9f6; }
+    .margin-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:10px; }
+    .margin-item { padding:11px; border-radius:8px; background:#fff; border:1px solid var(--line); }
+    .margin-item strong { display:block; margin:4px 0; font-size:21px; }
+    .margin-item .projection { margin-top:10px; padding-top:9px; border-top:1px solid var(--line); }
+    .margin-item .projection strong { font-size:18px; }
+    .positive { color:var(--good); } .negative { color:var(--bad); }
+    .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-top:12px; }
+    .panel { padding:18px; overflow:hidden; }
+    canvas { width:100%; height:260px; display:block; }
+    .result-chart { height:155px; }
+    .chart-subtitle { margin-top:18px; }
+    .stock-summary { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    .stock-summary div { background:var(--bg); border-radius:9px; padding:12px; }
+    .stock-summary strong { display:block; font-size:24px; }
+    .financial-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .financial-summary div { background:var(--bg); border-radius:9px; padding:12px; }
+    .financial-summary strong { display:block; margin:5px 0; font-size:22px; }
+    .table-wrap { overflow:auto; max-height:420px; }
+    table { width:100%; border-collapse:collapse; white-space:nowrap; }
+    th,td { border-bottom:1px solid var(--line); padding:9px 8px; text-align:right; }
+    th { position:sticky; top:0; background:var(--panel); color:var(--muted); font-size:10px; letter-spacing:.7px; text-transform:uppercase; }
+    th:first-child,td:first-child,th:nth-child(2),td:nth-child(2) { text-align:left; }
+    .pill { display:inline-block; border-radius:999px; padding:3px 7px; background:#eceae4; font-size:10px; font-weight:700; text-transform:uppercase; }
+    .pill.available { background:#daf2e5; color:var(--good); }
+    .pill.incoming { background:#fff0c9; color:#755500; }
+    .warnings { margin:12px 0 0; padding:0; list-style:none; }
+    .warnings li { background:#fff2d6; border:1px solid #efd99e; border-radius:8px; margin-top:7px; padding:9px 11px; }
+    .note { margin:-7px 0 13px; color:var(--muted); font-size:12px; }
+    .error { margin:20px 32px; padding:14px; border-radius:10px; background:#ffe6e2; color:var(--bad); }
+    @media(max-width:1100px) { .cards{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .financial-summary{grid-template-columns:1fr 1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .cards,.financial-summary,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} }
+  </style>
+</head>
+<body>
+  <header>
+    <div><div class="eyebrow">Tesign / lecture seule</div><h1>Stock, marge & acquisition</h1></div>
+    <div class="controls">
+      <label>Depuis<input id="since" type="date"></label>
+      <label>Jusqu'au<input id="until" type="date"></label>
+      <button id="refresh">Actualiser</button>
+    </div>
+  </header>
+  <div id="error" class="error" hidden></div>
+  <main>
+    <div class="status"><span id="period"></span><span id="updated"></span></div>
+    <section id="cards" class="cards"></section>
+    <section class="panel kpi-block"><h2>Santé globale</h2><div id="healthCards" class="kpi-grid"></div></section>
+    <section class="panel kpi-block"><h2>Bloc 2 — Vente</h2><div id="salesCards" class="kpi-grid sales"></div></section>
+    <section class="panel kpi-block">
+      <h2>Bloc 3 — Meta Ads</h2>
+      <div id="metaCards" class="kpi-grid meta"></div>
+      <div class="margin-box">
+        <span class="eyebrow">Repères de marge</span>
+        <div id="marginProfiles" class="margin-grid"></div>
+        <p class="note" style="margin:10px 0 0">Projection : CA période × marge − Meta − Geremy − charges fixes − autres dépenses.</p>
+      </div>
+      <div class="campaign-roas"><h2>ROAS par campagne</h2><div class="table-wrap"><table id="campaigns"></table></div></div>
+    </section>
+    <section class="panel" style="margin-top:12px">
+      <h2>Pilotage financier</h2>
+      <div class="financial-summary">
+        <div><span class="eyebrow">Compte Tesign</span><strong id="bankBalance">-</strong><small id="bankNote"></small></div>
+        <div><span class="eyebrow">Commission Geremy</span><strong id="geremyCommission">-</strong><small id="geremyNote"></small></div>
+        <div><span class="eyebrow">URSSAF estimee</span><strong id="urssafDue">-</strong><small id="urssafNote"></small></div>
+        <div><span class="eyebrow">Autres frais</span><strong id="businessExpenses">-</strong><small>Echantillons et frais saisis manuellement</small></div>
+      </div>
+      <p class="note" style="margin:12px 0 0">Le solde bancaire est un releve manuel. Le resultat economique et la tresorerie bancaire sont deux indicateurs differents.</p>
+    </section>
+    <section class="grid">
+      <div class="panel"><h2>CA et dépenses Meta par jour</h2><canvas id="chart" width="900" height="230"></canvas><h2 class="chart-subtitle">Résultat estimé par jour</h2><canvas id="resultChart" class="result-chart" width="900" height="170"></canvas><p class="note">Barre verte : bénéfice du jour. Barre rouge : perte du jour. Résultat = CA − coûts des ventes − Meta − Geremy − charges fixes − autres dépenses.</p></div>
+      <div class="panel">
+        <h2>Etat du stock</h2>
+        <div class="stock-summary"><div><span class="eyebrow">Disponible France</span><strong id="available">-</strong></div><div><span class="eyebrow">Entrant Turquie</span><strong id="incoming">-</strong></div></div>
+        <ul id="warnings" class="warnings"></ul>
+      </div>
+    </section>
+    <section class="grid">
+      <div class="panel"><h2>Lots de stock</h2><div class="table-wrap"><table id="stock"></table></div></div>
+      <div class="panel"><h2>Commandes Shopify</h2><div class="table-wrap"><table id="orders"></table></div></div>
+    </section>
+    <section class="panel" style="margin-top:12px"><h2>Performance quotidienne croisee</h2><p class="note">Le resultat estime inclut <strong id="dailyFixed">-</strong> de charges fixes par jour, meme sans vente.</p><div class="table-wrap"><table id="daily"></table></div></section>
+  </main>
+  <script>
+    const euro = v => v == null ? '-' : new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(v);
+    const number = v => v == null ? '-' : new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(v);
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const today = new Date(); const prior = new Date(today); prior.setDate(today.getDate()-90);
+    const dateValue = d => d.toISOString().slice(0,10);
+    since.value = dateValue(prior); until.value = dateValue(today);
+
+    function table(id, headers, rows) {
+      document.getElementById(id).innerHTML = `<thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody>`;
+    }
+    function drawChart(rows) {
+      const canvas = document.getElementById('chart'), ctx = canvas.getContext('2d');
+      const w=canvas.width,h=canvas.height,p=34; ctx.clearRect(0,0,w,h);
+      const max=Math.max(1,...rows.flatMap(r=>[r.revenue,r.ad_spend]));
+      ctx.strokeStyle='#dedbd4'; ctx.lineWidth=1;
+      for(let i=0;i<5;i++){const y=p+(h-2*p)*i/4;ctx.beginPath();ctx.moveTo(p,y);ctx.lineTo(w-p,y);ctx.stroke();}
+      const line=(key,color)=>{ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();rows.forEach((r,i)=>{const x=p+(w-2*p)*(rows.length===1?0:i/(rows.length-1));const pointY=h-p-(h-2*p)*(Number(r[key])||0)/max;i?ctx.lineTo(x,pointY):ctx.moveTo(x,pointY)});ctx.stroke()};
+      line('revenue','#151515'); line('ad_spend','#a7c900');
+      const legend=(x,color,label)=>{ctx.fillStyle=color;ctx.fillRect(x,8,12,3);ctx.fillStyle='#151515';ctx.fillText(label,x+18,13)};
+      legend(p,'#151515','CA Shopify');legend(p+110,'#a7c900','Meta');
+    }
+    function drawResultChart(rows) {
+      const canvas=document.getElementById('resultChart'),ctx=canvas.getContext('2d');
+      const w=canvas.width,h=canvas.height,p=28,values=rows.map(r=>Number(r.estimated_result)||0);
+      ctx.clearRect(0,0,w,h);
+      const min=Math.min(0,...values),max=Math.max(0,...values),range=Math.max(1,max-min);
+      const y=value=>p+(h-2*p)*(max-value)/range,zeroY=y(0),step=(w-2*p)/Math.max(1,rows.length),barWidth=Math.max(1,step*.72);
+      ctx.strokeStyle='#aaa69d';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(p,zeroY);ctx.lineTo(w-p,zeroY);ctx.stroke();
+      values.forEach((value,i)=>{const valueY=y(value),top=Math.min(valueY,zeroY),height=Math.max(1,Math.abs(zeroY-valueY));ctx.fillStyle=value>=0?'#176b4d':'#b44235';ctx.fillRect(p+i*step+(step-barWidth)/2,top,barWidth,height)});
+      ctx.fillStyle='#176b4d';ctx.fillRect(p,8,10,10);ctx.fillStyle='#151515';ctx.fillText('Bénéfice',p+15,17);ctx.fillStyle='#b44235';ctx.fillRect(p+85,8,10,10);ctx.fillStyle='#151515';ctx.fillText('Perte',p+100,17);
+    }
+    function render(d) {
+      const t=d.totals, cumulative=d.cumulative.totals, cumulativeComplete=d.cumulative.is_complete;
+      period.textContent=`${d.period.since} au ${d.period.until} (${d.period.days} jours)`;
+      updated.textContent=`Mis a jour ${new Date(d.generated_at).toLocaleString('fr-FR')}`;
+      const cumulativeClass=cumulativeComplete?(cumulative.estimated_result>=0?'positive':'negative'):'';
+      const cumulativeValue=cumulativeComplete?euro(cumulative.estimated_result):'À recalculer';
+      const cumulativeNote=cumulativeComplete?'Résultat estimé selon les données disponibles':'Historique Shopify incomplet — le chiffre sur 3 ans serait trompeur';
+      const cumulativeCard=`<div class="card primary"><span class="eyebrow">Résultat cumulé Tesign</span><strong class="${cumulativeClass}">${esc(cumulativeValue)}</strong><small>Depuis création — tous revenus moins toutes dépenses connues<span class="estimate-note">${esc(cumulativeNote)}</span></small></div>`;
+      cardsEl=document.getElementById('cards');cardsEl.innerHTML=cumulativeCard;
+      const cardHtml=c=>`<div class="card"><span class="eyebrow">${esc(c[0])}</span><strong class="${c[3]==null?'':(c[3]>=0?'positive':'negative')}">${esc(c[1])}</strong><small>${esc(c[2])}</small></div>`;
+      const mix=t.sales_mix||{}; const mixNote=mix.tshirt_share==null?'mix produit indisponible':`cible 15 € — ${number(mix.tshirt_share)} % tee-shirts / ${number(mix.sweatshirt_share)} % pulls`;
+      const roasNote=`cible après marge ${number(t.current_margin_rate*100)} % et Geremy 9 % — seuil brut ${number(t.gross_break_even_roas)}`;
+      const longHistoryIncomplete=!cumulativeComplete&&d.period.days>180;
+      const periodResultValue=longHistoryIncomplete?'À recalculer':euro(t.estimated_result);
+      const periodResultNote=longHistoryIncomplete?'historique Shopify incomplet sur cette période':`charges fixes depuis la première vente (${t.fixed_cost_days} jours)`;
+      const health=[['CA période',euro(t.revenue),`${t.orders} commandes`],['Résultat période',periodResultValue,periodResultNote,longHistoryIncomplete?null:t.estimated_result],['Marge contributive',euro(t.contribution_margin),'avant publicité, Geremy et charges fixes'],['ROAS réel / cible',`${number(t.blended_roas)} / ${number(t.target_roas)}`,roasNote],['CPA réel / cible',`${euro(t.cpa)} / ${euro(t.target_cpa)}`,mixNote]];
+      healthCards.innerHTML=health.map(cardHtml).join('');
+      const sales=[['Commandes',number(t.orders),'commandes payées'],['Visites site',number(t.site_visits),'sessions Shopify'],['Taux de conversion',t.conversion_rate==null?'-':`${number(t.conversion_rate)} %`,'paiements terminés / sessions Shopify'],['Panier moyen',euro(t.average_order_value),'CA / commandes'],['Ajouts panier',number(t.add_to_carts),'sessions Shopify avec ajout panier']];
+      salesCards.innerHTML=sales.map(cardHtml).join('');
+      const meta=[['Dépenses Meta',euro(t.ad_spend),'sur la période'],['ROAS réel / ROAS cible',`${number(t.blended_roas)} / ${number(t.target_roas)}`,roasNote],['CPA réel / CPA cible',`${euro(t.cpa)} / ${euro(t.target_cpa)}`,mixNote]];
+      metaCards.innerHTML=meta.map(cardHtml).join('');
+      marginProfiles.innerHTML=(d.margin_profiles||[]).map(p=>`<div class="margin-item"><span class="eyebrow">${esc(p.label)}</span><strong>${number(Number(p.margin_rate)*100)} %</strong><small>${esc(p.shipping)}</small><div class="projection"><small>Résultat projeté sur la période</small><strong class="${p.projected_result>=0?'positive':'negative'}">${euro(p.projected_result)}</strong><small>si tout le CA était à cette marge</small></div></div>`).join('');
+      table('campaigns',['Campagne','Dépenses','Achats attribués','CA attribué','ROAS','CPA'],d.campaign_performance.map(r=>`<tr><td>${esc(r.campaign)}</td><td>${euro(r.spend)}</td><td>${number(r.purchases)}</td><td>${euro(r.purchase_value)}</td><td>${number(r.roas)}</td><td>${euro(r.cpa)}</td></tr>`));
+      const bank=d.financial.bank_account||{}; bankBalance.textContent=euro(bank.balance); bankBalance.className=Number(bank.balance)>=0?'positive':'negative'; bankNote.textContent=`Releve ${bank.source==='manual'?'manuel':'connecte'} du ${bank.recorded_at||'-'}`;
+      geremyCommission.textContent=euro(t.geremy_commission); const geremyDue=Math.max(0,t.geremy_balance_due); const geremyGap=Math.max(0,-t.geremy_balance_due); geremyNote.textContent=`Paye ${euro(t.geremy_paid)} / ${geremyGap?`ecart a verifier ${euro(geremyGap)}`:`reste ${euro(geremyDue)}`}`;
+      urssafDue.textContent=euro(Math.max(0,t.urssaf_balance_due)); urssafNote.textContent=`Calcule ${euro(t.urssaf_estimated)} / paye ${euro(t.urssaf_paid)}`;
+      businessExpenses.textContent=euro(t.business_expenses);
+      available.textContent=d.stock_totals.available; incoming.textContent=d.stock_totals.incoming;
+      const monthlyFixed=Object.values(d.fixed_costs_monthly).reduce((sum,value)=>sum+Number(value),0); dailyFixed.textContent=euro(monthlyFixed/30.4375);
+      warnings.innerHTML=d.warnings.map(w=>`<li>${esc(w)}</li>`).join('');
+      drawChart(d.daily);
+      drawResultChart(d.daily);
+      table('stock',['Produit','Taille / couleur','Origine','Statut','Initial','Restant','Shopify'],d.stock.map(r=>`<tr><td>${esc(r.product)}</td><td>${esc(r.variant)}</td><td>${esc(r.origin)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td><td>${r.initial}</td><td>${r.remaining}</td><td>${r.shopify_quantity??'non lie'}</td></tr>`));
+      table('orders',['Commande','Date','CA','Couts','Marge','Articles'],d.orders.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${euro(r.variable_costs)}</td><td class="${r.margin>=0?'positive':'negative'}">${euro(r.margin)}</td><td>${r.units}</td></tr>`));
+      table('daily',['Date','CA','Commandes','Marge','Meta','Geremy','URSSAF','ROAS reel','ROAS Meta','Resultat'],[...d.daily].reverse().map(r=>`<tr><td>${r.date}</td><td>${euro(r.revenue)}</td><td>${r.orders}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.ad_spend)}</td><td>${euro(r.geremy_commission)}</td><td>${euro(r.urssaf_estimated)}</td><td>${number(r.blended_roas)}</td><td>${number(r.meta_roas)}</td><td class="${r.estimated_result>=0?'positive':'negative'}">${euro(r.estimated_result)}</td></tr>`));
+    }
+    async function load(force=false) {
+      error.hidden=true; refresh.disabled=true; refresh.textContent='Chargement...';
+      try { const path=force?'/api/refresh':'/api/dashboard'; const res=await fetch(`${path}?since=${since.value}&until=${until.value}`); const data=await res.json(); if(!res.ok)throw new Error(data.error||'Erreur inconnue'); render(data); }
+      catch(e){error.textContent=e.message;error.hidden=false} finally {refresh.disabled=false;refresh.textContent='Actualiser'}
+    }
+    refresh.onclick=()=>load(true); load(); setInterval(()=>load(false),300000);
+  </script>
+</body>
+</html>
