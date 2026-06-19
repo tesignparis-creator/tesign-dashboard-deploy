@@ -37,6 +37,10 @@
     .margin-item strong { display:block; margin:4px 0; font-size:21px; }
     .margin-item .projection { margin-top:10px; padding-top:9px; border-top:1px solid var(--line); }
     .margin-item .projection strong { font-size:18px; }
+    .margin-item.retired { opacity:.55; background:#f4f1ed; }
+    .margin-item.retired > * { text-decoration:line-through; }
+    .margin-item.highlight { background:#edf8ef; border-color:#79b887; box-shadow:inset 0 0 0 1px #79b887; }
+    .margin-status { display:inline-block; margin-top:8px; padding:4px 8px; border-radius:999px; background:#207a3d; color:#fff; font-size:11px; font-weight:700; letter-spacing:.2px; }
     .positive { color:var(--good); } .negative { color:var(--bad); }
     .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-top:12px; }
     .panel { padding:18px; overflow:hidden; }
@@ -79,9 +83,9 @@
     <div class="status"><span id="period"></span><span id="updated"></span></div>
     <section id="cards" class="cards"></section>
     <section class="panel kpi-block"><h2>Santé globale</h2><div id="healthCards" class="kpi-grid"></div></section>
-    <section class="panel kpi-block"><h2>Bloc 2 — Vente</h2><div id="salesCards" class="kpi-grid sales"></div></section>
+    <section class="panel kpi-block"><h2>Vente</h2><div id="salesCards" class="kpi-grid sales"></div></section>
     <section class="panel kpi-block">
-      <h2>Bloc 3 — Meta Ads</h2>
+      <h2>Meta Ads</h2>
       <div id="metaCards" class="kpi-grid meta"></div>
       <div class="margin-box">
         <span class="eyebrow">Repères de marge</span>
@@ -167,7 +171,14 @@
       salesCards.innerHTML=sales.map(cardHtml).join('');
       const meta=[['Dépenses Meta',euro(t.ad_spend),'sur la période'],['ROAS réel / ROAS cible',`${number(t.blended_roas)} / ${number(t.target_roas)}`,roasNote],['CPA réel / CPA cible',`${euro(t.cpa)} / ${euro(t.target_cpa)}`,mixNote]];
       metaCards.innerHTML=meta.map(cardHtml).join('');
-      marginProfiles.innerHTML=(d.margin_profiles||[]).map(p=>`<div class="margin-item"><span class="eyebrow">${esc(p.label)}</span><strong>${number(Number(p.margin_rate)*100)} %</strong><small>${esc(p.shipping)}</small><div class="projection"><small>Résultat projeté sur la période</small><strong class="${p.projected_result>=0?'positive':'negative'}">${euro(p.projected_result)}</strong><small>si tout le CA était à cette marge</small></div></div>`).join('');
+      marginProfiles.innerHTML=(d.margin_profiles||[]).map(p=>{
+        const isFrance=p.label==='T-shirt France';
+        const isTurkey=p.label==='T-shirt Turquie';
+        const isAsia=p.label==='T-shirt Asie';
+        const cardClass=isFrance?' retired':(isTurkey||isAsia?' highlight':'');
+        const status=isAsia?'<span class="margin-status">Sample commandé</span>':'';
+        return `<div class="margin-item${cardClass}"><span class="eyebrow">${esc(p.label)}</span><strong>${number(Number(p.margin_rate)*100)} %</strong><small>${esc(p.shipping)}</small>${status}<div class="projection"><small>Résultat projeté sur la période</small><strong class="${p.projected_result>=0?'positive':'negative'}">${euro(p.projected_result)}</strong><small>si tout le CA était à cette marge</small></div></div>`;
+      }).join('');
       table('campaigns',['Campagne','Dépenses','Achats attribués','CA attribué','ROAS','CPA'],d.campaign_performance.map(r=>`<tr><td>${esc(r.campaign)}</td><td>${euro(r.spend)}</td><td>${number(r.purchases)}</td><td>${euro(r.purchase_value)}</td><td>${number(r.roas)}</td><td>${euro(r.cpa)}</td></tr>`));
       const bank=d.financial.bank_account||{}; bankBalance.textContent=euro(bank.balance); bankBalance.className=Number(bank.balance)>=0?'positive':'negative'; bankNote.textContent=`Releve ${bank.source==='manual'?'manuel':'connecte'} du ${bank.recorded_at||'-'}`;
       geremyCommission.textContent=euro(t.geremy_commission); const geremyDue=Math.max(0,t.geremy_balance_due); const geremyGap=Math.max(0,-t.geremy_balance_due); geremyNote.textContent=`Paye ${euro(t.geremy_paid)} / ${geremyGap?`ecart a verifier ${euro(geremyGap)}`:`reste ${euro(geremyDue)}`}`;
