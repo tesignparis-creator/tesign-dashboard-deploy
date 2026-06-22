@@ -41,6 +41,9 @@
     .margin-item.retired > * { text-decoration:line-through; }
     .margin-item.highlight { background:#edf8ef; border-color:#79b887; box-shadow:inset 0 0 0 1px #79b887; }
     .margin-status { display:inline-block; margin-top:8px; padding:4px 8px; border-radius:999px; background:#207a3d; color:#fff; font-size:11px; font-weight:700; letter-spacing:.2px; }
+    .objective-box { margin-top:12px; padding:14px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    .objective-box ul { margin:9px 0 0; padding-left:20px; }
+    .objective-box li { padding-left:3px; }
     .positive { color:var(--good); } .negative { color:var(--bad); }
     .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-top:12px; }
     .panel { padding:18px; overflow:hidden; }
@@ -91,6 +94,10 @@
         <span class="eyebrow">Repères de marge</span>
         <div id="marginProfiles" class="margin-grid"></div>
         <p class="note" style="margin:10px 0 0">Projection : CA période × marge − Meta − Geremy − charges fixes − autres dépenses.</p>
+      </div>
+      <div class="objective-box">
+        <span class="eyebrow">Prochain objectif</span>
+        <ul><li>Nouveau deal avec Geremy : passer à 20 % de commission sur le profit généré par Meta.</li></ul>
       </div>
       <div class="campaign-roas"><h2>ROAS par campagne</h2><div class="table-wrap"><table id="campaigns"></table></div></div>
     </section>
@@ -175,7 +182,7 @@
         const isFrance=p.label==='T-shirt France';
         const isTurkey=p.label==='T-shirt Turquie';
         const isAsia=p.label==='T-shirt Asie';
-        const cardClass=isFrance?' retired':(isTurkey||isAsia?' highlight':'');
+        const cardClass=isFrance?' retired':(isTurkey?' highlight':'');
         const status=isAsia?'<span class="margin-status">Sample commandé</span>':'';
         return `<div class="margin-item${cardClass}"><span class="eyebrow">${esc(p.label)}</span><strong>${number(Number(p.margin_rate)*100)} %</strong><small>${esc(p.shipping)}</small>${status}<div class="projection"><small>Résultat projeté sur la période</small><strong class="${p.projected_result>=0?'positive':'negative'}">${euro(p.projected_result)}</strong><small>si tout le CA était à cette marge</small></div></div>`;
       }).join('');
