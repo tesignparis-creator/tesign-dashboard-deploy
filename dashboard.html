@@ -44,6 +44,8 @@
     .objective-box { margin-top:12px; padding:14px; border:1px solid var(--line); border-radius:10px; background:#fff; }
     .objective-box ul { margin:9px 0 0; padding-left:20px; }
     .objective-box li { padding-left:3px; }
+    .block-conclusion { margin:14px 0 0; padding:12px 14px; border-left:3px solid var(--ink); border-radius:0 8px 8px 0; background:#f7f5f0; color:#4e4b45; }
+    .block-conclusion strong { color:var(--ink); }
     .positive { color:var(--good); } .negative { color:var(--bad); }
     .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-top:12px; }
     .panel { padding:18px; overflow:hidden; }
@@ -85,8 +87,8 @@
   <main>
     <div class="status"><span id="period"></span><span id="updated"></span></div>
     <section id="cards" class="cards"></section>
-    <section class="panel kpi-block"><h2>Santé globale</h2><div id="healthCards" class="kpi-grid"></div></section>
-    <section class="panel kpi-block"><h2>Vente</h2><div id="salesCards" class="kpi-grid sales"></div></section>
+    <section class="panel kpi-block"><h2>Santé globale</h2><div id="healthCards" class="kpi-grid"></div><p id="healthConclusion" class="block-conclusion"></p></section>
+    <section class="panel kpi-block"><h2>Vente</h2><div id="salesCards" class="kpi-grid sales"></div><p id="salesConclusion" class="block-conclusion"></p></section>
     <section class="panel kpi-block">
       <h2>Meta Ads</h2>
       <div id="metaCards" class="kpi-grid meta"></div>
@@ -100,6 +102,7 @@
         <ul><li>Nouveau deal avec Geremy : passer à 20 % de commission sur le profit généré par Meta.</li></ul>
       </div>
       <div class="campaign-roas"><h2>ROAS par campagne</h2><div class="table-wrap"><table id="campaigns"></table></div></div>
+      <p id="metaConclusion" class="block-conclusion"></p>
     </section>
     <section class="panel" style="margin-top:12px">
       <h2>Pilotage financier</h2>
@@ -174,10 +177,25 @@
       const periodResultNote=longHistoryIncomplete?'historique Shopify incomplet sur cette période':`charges fixes depuis la première vente (${t.fixed_cost_days} jours)`;
       const health=[['CA période',euro(t.revenue),`${t.orders} commandes`],['Résultat période',periodResultValue,periodResultNote,longHistoryIncomplete?null:t.estimated_result],['Marge contributive',euro(t.contribution_margin),'avant publicité, Geremy et charges fixes'],['ROAS réel / cible',`${number(t.blended_roas)} / ${number(t.target_roas)}`,roasNote],['CPA réel / cible',`${euro(t.cpa)} / ${euro(t.target_cpa)}`,mixNote]];
       healthCards.innerHTML=health.map(cardHtml).join('');
+      const paidSalesUnprofitable=Number(t.ad_spend)>0&&Number(t.estimated_result)<0;
+      healthConclusion.innerHTML=paidSalesUnprofitable
+        ? '<strong>Conclusion nette :</strong> Tesign vend, mais les ventes achetées via Meta ne sont pas rentables.<br>Les gens achètent. Mais tu achètes tes ventes trop cher.'
+        : Number(t.estimated_result)<0
+          ? '<strong>Conclusion nette :</strong> Tesign vend, mais les coûts connus dépassent encore la marge générée sur cette période.'
+          : '<strong>Conclusion nette :</strong> Tesign vend et le résultat de la période est positif. Il faut préserver cette rentabilité en maîtrisant le coût des ventes.';
       const sales=[['Commandes',number(t.orders),'commandes payées'],['Visites site',number(t.site_visits),'sessions Shopify'],['Taux de conversion',t.conversion_rate==null?'-':`${number(t.conversion_rate)} %`,'paiements terminés / sessions Shopify'],['Panier moyen',euro(t.average_order_value),'CA / commandes'],['Ajouts panier',number(t.add_to_carts),'sessions Shopify avec ajout panier']];
       salesCards.innerHTML=sales.map(cardHtml).join('');
+      salesConclusion.innerHTML=Number(t.orders)>0
+        ? `<strong>Conclusion vente :</strong> Le site génère ${number(t.orders)} commandes avec un panier moyen de ${euro(t.average_order_value)}. Le produit se vend ; le principal frein reste le coût d'acquisition.`
+        : '<strong>Conclusion vente :</strong> Aucune commande payée sur cette période. Il faut d’abord vérifier le trafic et la conversion avant d’évaluer la rentabilité.';
       const meta=[['Dépenses Meta',euro(t.ad_spend),'sur la période'],['ROAS réel / ROAS cible',`${number(t.blended_roas)} / ${number(t.target_roas)}`,roasNote],['CPA réel / CPA cible',`${euro(t.cpa)} / ${euro(t.target_cpa)}`,mixNote]];
       metaCards.innerHTML=meta.map(cardHtml).join('');
+      const metaBelowTarget=Number(t.blended_roas)<Number(t.target_roas)||Number(t.cpa)>Number(t.target_cpa);
+      metaConclusion.innerHTML=Number(t.ad_spend)<=0
+        ? '<strong>Conclusion Meta Ads :</strong> Aucune dépense Meta sur cette période ; la rentabilité publicitaire ne peut pas être évaluée.'
+        : metaBelowTarget
+          ? `<strong>Conclusion Meta Ads :</strong> Le ROAS réel (${number(t.blended_roas)}) reste sous la cible (${number(t.target_roas)}) et le CPA (${euro(t.cpa)}) dépasse la cible (${euro(t.target_cpa)}). Il faut réduire le coût d'acquisition avant de relancer à grande échelle.`
+          : '<strong>Conclusion Meta Ads :</strong> Le ROAS et le CPA sont dans les objectifs. Les campagnes peuvent être développées progressivement en surveillant la marge.';
       marginProfiles.innerHTML=(d.margin_profiles||[]).map(p=>{
         const isFrance=p.label==='T-shirt France';
         const isTurkey=p.label==='T-shirt Turquie';
