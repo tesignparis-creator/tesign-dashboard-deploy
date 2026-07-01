@@ -20,6 +20,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 HTML_PATH = ROOT / "dashboard.html"
+STATIC_PATH = ROOT / "static"
 
 
 def load_local_env() -> None:
@@ -1107,6 +1108,12 @@ def make_handler(cache: Cache):
             try:
                 if parsed.path == "/":
                     self.send_bytes(HTML_PATH.read_bytes(), "text/html; charset=utf-8")
+                    return
+                if parsed.path == "/static/favicon.png":
+                    self.send_bytes(
+                        (STATIC_PATH / "favicon.png").read_bytes(),
+                        "image/png",
+                    )
                     return
                 if parsed.path in ("/api/dashboard", "/api/refresh"):
                     since, until = parse_period(urllib.parse.parse_qs(parsed.query))
