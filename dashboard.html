@@ -90,8 +90,9 @@
     .pill.incoming { background:#fff0c9; color:#755500; }
     .pill.rentable { background:#daf2e5; color:var(--good); }
     .pill.perte { background:#ffe6e2; color:var(--bad); }
-    .warnings { margin:12px 0 0; padding:0; list-style:none; }
+    .warnings { display:none; margin:12px 0 0; padding:0; list-style:none; }
     .warnings li { background:#fff2d6; border:1px solid #efd99e; border-radius:8px; margin-top:7px; padding:9px 11px; }
+    .hidden-panel { display:none; }
     .note { margin:-7px 0 13px; color:var(--muted); font-size:12px; }
     .error { margin:20px 32px; padding:14px; border-radius:10px; background:#ffe6e2; color:var(--bad); }
     @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta{grid-template-columns:repeat(2,1fr)} }
@@ -159,7 +160,7 @@
       <p id="chartInsight" class="block-conclusion"></p>
     </section>
     <section class="grid">
-      <div class="panel"><h2>Évolution 24 mois : CA, marge et coûts Meta</h2><canvas id="chart" width="900" height="230"></canvas><h2 class="chart-subtitle">Résultat estimé par jour</h2><canvas id="resultChart" class="result-chart" width="900" height="170"></canvas><p class="note">Le grand graphique regroupe les 2 dernières années par mois pour lire la tendance. Barre verte : bénéfice du jour. Barre rouge : perte du jour.</p></div>
+      <div class="panel"><h2>Évolution 24 mois : CA, marge, Meta et résultat</h2><canvas id="chart" width="900" height="270"></canvas><p class="note">Vue mensuelle sur 2 ans. La courbe Résultat passe au-dessus de zéro quand Tesign est positif, et sous zéro quand Tesign est négatif.</p></div>
       <div class="panel">
         <h2>Etat du stock</h2>
         <div class="stock-summary"><div><span class="eyebrow">Disponible France</span><strong id="available">-</strong></div><div><span class="eyebrow">Entrant Turquie</span><strong id="incoming">-</strong></div></div>
@@ -170,7 +171,7 @@
       <div class="panel"><h2>Lots de stock</h2><div class="table-wrap"><table id="stock"></table></div></div>
       <div class="panel"><h2>Commandes Shopify</h2><div class="table-wrap"><table id="orders"></table></div></div>
     </section>
-    <section class="panel" style="margin-top:12px"><h2>Performance quotidienne croisee</h2><p class="note">Le resultat estime inclut <strong id="dailyFixed">-</strong> de charges fixes par jour, meme sans vente.</p><div class="table-wrap"><table id="daily"></table></div></section>
+    <section class="panel hidden-panel" style="margin-top:12px"><h2>Performance quotidienne croisee</h2><p class="note">Le resultat estime inclut <strong id="dailyFixed">-</strong> de charges fixes par jour, meme sans vente.</p><div class="table-wrap"><table id="daily"></table></div></section>
   </main>
   <script>
     const moneyFmt = (v,currency='EUR') => v == null ? '-' : new Intl.NumberFormat('fr-FR',{style:'currency',currency:currency||'EUR'}).format(v);
@@ -275,37 +276,32 @@
     function drawChart(rows) {
       const canvas = document.getElementById('chart'), ctx = canvas.getContext('2d');
       const w=canvas.width,h=canvas.height,p=44; ctx.clearRect(0,0,w,h);
-      const values=rows.flatMap(r=>[Number(r.revenue)||0,Number(r.contribution_margin)||0,Number(r.ad_spend)||0]);
+      const values=rows.flatMap(r=>[Number(r.revenue)||0,Number(r.contribution_margin)||0,Number(r.ad_spend)||0,Number(r.estimated_result)||0]);
       const max=Math.max(1,...values)*1.15;
+      const min=Math.min(0,...values)*1.15;
+      const range=Math.max(1,max-min);
       const x=i=>p+(w-2*p)*(rows.length===1?0:i/(rows.length-1));
-      const y=value=>h-p-(h-2*p)*(Number(value)||0)/max;
+      const y=value=>h-p-(h-2*p)*((Number(value)||0)-min)/range;
+      const zeroY=y(0);
       ctx.font='12px Inter, Segoe UI, Arial';
       ctx.strokeStyle='#dedbd4'; ctx.lineWidth=1;
-      for(let i=0;i<5;i++){const yy=p+(h-2*p)*i/4;ctx.beginPath();ctx.moveTo(p,yy);ctx.lineTo(w-p,yy);ctx.stroke();ctx.fillStyle='#77736b';ctx.fillText(euro(max*(1-i/4)),6,yy+4)}
+      for(let i=0;i<5;i++){const value=max-(range*i/4),yy=y(value);ctx.beginPath();ctx.moveTo(p,yy);ctx.lineTo(w-p,yy);ctx.stroke();ctx.fillStyle='#77736b';ctx.fillText(euro(value),6,yy+4)}
+      ctx.strokeStyle='#aaa69d';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(p,zeroY);ctx.lineTo(w-p,zeroY);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#77736b';ctx.fillText('0 €',w-p+5,zeroY+4);
       const line=(getValue,color,width=3,dash=[])=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();rows.forEach((r,i)=>{const yy=y(getValue(r,i));i?ctx.lineTo(x(i),yy):ctx.moveTo(x(i),yy)});ctx.stroke();ctx.setLineDash([])};
+      rows.forEach((r,i)=>{const result=Number(r.estimated_result)||0;if(!result)return;ctx.fillStyle=result>0?'rgba(23,107,77,.12)':'rgba(180,66,53,.13)';const left=i===0?p:((x(i-1)+x(i))/2),right=i===rows.length-1?w-p:((x(i)+x(i+1))/2);ctx.fillRect(left,p,Math.max(1,right-left),h-2*p)});
       line(r=>r.revenue,'#151515',2.5);
       line(r=>r.contribution_margin,'#176b4d',3);
       line(r=>r.ad_spend,'#a7c900',2.5,[7,5]);
-      const goodMonths=rows.filter(r=>Number(r.contribution_margin)>Number(r.ad_spend)).length;
-      rows.forEach((r,i)=>{const gap=(Number(r.contribution_margin)||0)-(Number(r.ad_spend)||0);if(!gap)return;ctx.fillStyle=gap>0?'rgba(23,107,77,.12)':'rgba(180,66,53,.13)';const left=i===0?p:((x(i-1)+x(i))/2),right=i===rows.length-1?w-p:((x(i)+x(i+1))/2);ctx.fillRect(left,p,Math.max(1,right-left),h-2*p)});
+      line(r=>r.estimated_result,'#b44235',3);
+      const positiveMonths=rows.filter(r=>Number(r.estimated_result)>0).length;
       const active=rows.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
-      const best=[...active].sort((a,b)=>((Number(b.contribution_margin)||0)-(Number(b.ad_spend)||0))-((Number(a.contribution_margin)||0)-(Number(a.ad_spend)||0)))[0];
-      const worst=[...active].sort((a,b)=>((Number(a.contribution_margin)||0)-(Number(a.ad_spend)||0))-((Number(b.contribution_margin)||0)-(Number(b.ad_spend)||0)))[0];
-      [best,worst].filter(Boolean).forEach((r,idx)=>{const i=rows.findIndex(day=>day.date===r.date),yy=y(Math.max(Number(r.revenue)||0,Number(r.contribution_margin)||0,Number(r.ad_spend)||0));const gap=(Number(r.contribution_margin)||0)-(Number(r.ad_spend)||0);ctx.fillStyle=idx?'#b44235':'#176b4d';ctx.beginPath();ctx.arc(x(i),yy,5,0,Math.PI*2);ctx.fill();ctx.fillText(`${idx?'Faible':'Fort'} ${r.date.slice(5)} ${euro(gap)}`,Math.min(w-190,x(i)+8),Math.max(18,yy-8))});
+      const best=[...active].sort((a,b)=>(Number(b.estimated_result)||0)-(Number(a.estimated_result)||0))[0];
+      const worst=[...active].sort((a,b)=>(Number(a.estimated_result)||0)-(Number(b.estimated_result)||0))[0];
+      [best,worst].filter(Boolean).forEach((r,idx)=>{const i=rows.findIndex(day=>day.date===r.date),yy=y(Number(r.estimated_result)||0);ctx.fillStyle=idx?'#b44235':'#176b4d';ctx.beginPath();ctx.arc(x(i),yy,5,0,Math.PI*2);ctx.fill();ctx.fillText(`${idx?'Faible':'Fort'} ${r.date.slice(5)} ${euro(r.estimated_result)}`,Math.min(w-190,x(i)+8),Math.max(18,yy-8))});
       const legend=(x0,color,label,dash=false)=>{ctx.strokeStyle=color;ctx.lineWidth=3;ctx.setLineDash(dash?[7,5]:[]);ctx.beginPath();ctx.moveTo(x0,13);ctx.lineTo(x0+18,13);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#151515';ctx.fillText(label,x0+24,17)};
-      legend(p,'#151515','CA');legend(p+75,'#176b4d','Marge');legend(p+170,'#a7c900','Meta',true);
-      ctx.fillStyle='#77736b';ctx.fillText(`${goodMonths}/${rows.length} mois marge > Meta`,w-180,17);
+      legend(p,'#151515','CA');legend(p+75,'#176b4d','Marge');legend(p+170,'#a7c900','Meta',true);legend(p+255,'#b44235','Résultat');
+      ctx.fillStyle='#77736b';ctx.fillText(`${positiveMonths}/${rows.length} mois positifs`,w-150,17);
       if(rows.length){ctx.fillStyle='#77736b';ctx.fillText(rows[0].date,p,h-12);ctx.fillText(rows[rows.length-1].date,w-p-48,h-12)}
-    }
-    function drawResultChart(rows) {
-      const canvas=document.getElementById('resultChart'),ctx=canvas.getContext('2d');
-      const w=canvas.width,h=canvas.height,p=28,values=rows.map(r=>Number(r.estimated_result)||0);
-      ctx.clearRect(0,0,w,h);
-      const min=Math.min(0,...values),max=Math.max(0,...values),range=Math.max(1,max-min);
-      const y=value=>p+(h-2*p)*(max-value)/range,zeroY=y(0),step=(w-2*p)/Math.max(1,rows.length),barWidth=Math.max(1,step*.72);
-      ctx.strokeStyle='#aaa69d';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(p,zeroY);ctx.lineTo(w-p,zeroY);ctx.stroke();
-      values.forEach((value,i)=>{const valueY=y(value),top=Math.min(valueY,zeroY),height=Math.max(1,Math.abs(zeroY-valueY));ctx.fillStyle=value>=0?'#176b4d':'#b44235';ctx.fillRect(p+i*step+(step-barWidth)/2,top,barWidth,height)});
-      ctx.fillStyle='#176b4d';ctx.fillRect(p,8,10,10);ctx.fillStyle='#151515';ctx.fillText('Bénéfice',p+15,17);ctx.fillStyle='#b44235';ctx.fillRect(p+85,8,10,10);ctx.fillStyle='#151515';ctx.fillText('Perte',p+100,17);
     }
     function render(d) {
       const t=d.totals, cumulative=d.cumulative.totals, cumulativeComplete=d.cumulative.is_complete;
@@ -414,7 +410,6 @@
         : `<strong>Lecture graphique :</strong> sur les 24 derniers mois, la marge couvre Meta avec ${euro(trendGap)} d'avance. Le meilleur mois est ${bestMonth?`${bestMonth.date} (${euro((Number(bestMonth.contribution_margin)||0)-(Number(bestMonth.ad_spend)||0))})`:'non identifiable'}.`;
       warnings.innerHTML=d.warnings.map(w=>`<li>${esc(w)}</li>`).join('');
       drawChart(trendMonths);
-      drawResultChart(d.daily);
       table('stock',['Produit','Taille / couleur','Origine','Statut','Initial','Restant','Shopify'],d.stock.map(r=>`<tr><td>${esc(r.product)}</td><td>${esc(r.variant)}</td><td>${esc(r.origin)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td><td>${r.initial}</td><td>${r.remaining}</td><td>${r.shopify_quantity??'non lie'}</td></tr>`));
       table('orders',['Commande','Date','CA','Couts','Marge','Articles'],d.orders.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${euro(r.variable_costs)}</td><td class="${r.margin>=0?'positive':'negative'}">${euro(r.margin)}</td><td>${r.units}</td></tr>`));
       table('daily',['Date','CA','Commandes','Marge','Meta','Geremy','URSSAF','ROAS reel','ROAS Meta','Resultat'],[...d.daily].reverse().map(r=>`<tr><td>${r.date}</td><td>${euro(r.revenue)}</td><td>${r.orders}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.ad_spend)}</td><td>${euro(r.geremy_commission)}</td><td>${euro(r.urssaf_estimated)}</td><td>${number(r.blended_roas)}</td><td>${number(r.meta_roas)}</td><td class="${r.estimated_result>=0?'positive':'negative'}">${euro(r.estimated_result)}</td></tr>`));
