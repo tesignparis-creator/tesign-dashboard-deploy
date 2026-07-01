@@ -133,7 +133,7 @@
       <p id="chartInsight" class="block-conclusion"></p>
     </section>
     <section class="grid">
-      <div class="panel"><h2>CA et dépenses Meta par jour</h2><canvas id="chart" width="900" height="230"></canvas><h2 class="chart-subtitle">Résultat estimé par jour</h2><canvas id="resultChart" class="result-chart" width="900" height="170"></canvas><p class="note">Barre verte : bénéfice du jour. Barre rouge : perte du jour. Résultat = CA − coûts des ventes − Meta − Geremy − charges fixes − autres dépenses.</p></div>
+      <div class="panel"><h2>Évolution 24 mois : CA, marge et coûts Meta</h2><canvas id="chart" width="900" height="230"></canvas><h2 class="chart-subtitle">Résultat estimé par jour</h2><canvas id="resultChart" class="result-chart" width="900" height="170"></canvas><p class="note">Le grand graphique regroupe les 2 dernières années par mois pour lire la tendance. Barre verte : bénéfice du jour. Barre rouge : perte du jour.</p></div>
       <div class="panel">
         <h2>Etat du stock</h2>
         <div class="stock-summary"><div><span class="eyebrow">Disponible France</span><strong id="available">-</strong></div><div><span class="eyebrow">Entrant Turquie</span><strong id="incoming">-</strong></div></div>
@@ -158,30 +158,51 @@
     function table(id, headers, rows) {
       document.getElementById(id).innerHTML = `<thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody>`;
     }
+    function aggregateMonthly(rows) {
+      const months = new Map();
+      rows.forEach(row => {
+        const month = String(row.date || '').slice(0, 7);
+        if(!month) return;
+        if(!months.has(month)) months.set(month, { date: month, revenue: 0, contribution_margin: 0, ad_spend: 0, estimated_result: 0, orders: 0 });
+        const bucket = months.get(month);
+        bucket.revenue += Number(row.revenue) || 0;
+        bucket.contribution_margin += Number(row.contribution_margin) || 0;
+        bucket.ad_spend += Number(row.ad_spend) || 0;
+        bucket.estimated_result += Number(row.estimated_result) || 0;
+        bucket.orders += Number(row.orders) || 0;
+      });
+      return [...months.values()].map(row => ({
+        ...row,
+        revenue: Math.round(row.revenue * 100) / 100,
+        contribution_margin: Math.round(row.contribution_margin * 100) / 100,
+        ad_spend: Math.round(row.ad_spend * 100) / 100,
+        estimated_result: Math.round(row.estimated_result * 100) / 100
+      }));
+    }
     function drawChart(rows) {
       const canvas = document.getElementById('chart'), ctx = canvas.getContext('2d');
       const w=canvas.width,h=canvas.height,p=44; ctx.clearRect(0,0,w,h);
-      const values=rows.flatMap(r=>[Number(r.revenue)||0,Number(r.ad_spend)||0,Math.max(0,Number(r.estimated_result)||0)]);
+      const values=rows.flatMap(r=>[Number(r.revenue)||0,Number(r.contribution_margin)||0,Number(r.ad_spend)||0]);
       const max=Math.max(1,...values)*1.15;
       const x=i=>p+(w-2*p)*(rows.length===1?0:i/(rows.length-1));
       const y=value=>h-p-(h-2*p)*(Number(value)||0)/max;
       ctx.font='12px Inter, Segoe UI, Arial';
       ctx.strokeStyle='#dedbd4'; ctx.lineWidth=1;
       for(let i=0;i<5;i++){const yy=p+(h-2*p)*i/4;ctx.beginPath();ctx.moveTo(p,yy);ctx.lineTo(w-p,yy);ctx.stroke();ctx.fillStyle='#77736b';ctx.fillText(euro(max*(1-i/4)),6,yy+4)}
-      const avg=(key,index,span=7)=>{const start=Math.max(0,index-span+1),slice=rows.slice(start,index+1);return slice.reduce((s,r)=>s+(Number(r[key])||0),0)/slice.length};
       const line=(getValue,color,width=3,dash=[])=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();rows.forEach((r,i)=>{const yy=y(getValue(r,i));i?ctx.lineTo(x(i),yy):ctx.moveTo(x(i),yy)});ctx.stroke();ctx.setLineDash([])};
       line(r=>r.revenue,'#151515',2.5);
-      line(r=>r.ad_spend,'#a7c900',2.5);
-      line((r,i)=>avg('revenue',i),'#176b4d',3,[7,5]);
-      const profitable=rows.filter(r=>Number(r.estimated_result)>0).length;
-      rows.forEach((r,i)=>{const result=Number(r.estimated_result)||0;if(!result)return;ctx.fillStyle=result>0?'rgba(23,107,77,.18)':'rgba(180,66,53,.14)';const xx=x(i)-2;ctx.fillRect(xx,p,4,h-2*p)});
+      line(r=>r.contribution_margin,'#176b4d',3);
+      line(r=>r.ad_spend,'#a7c900',2.5,[7,5]);
+      const goodMonths=rows.filter(r=>Number(r.contribution_margin)>Number(r.ad_spend)).length;
+      rows.forEach((r,i)=>{const gap=(Number(r.contribution_margin)||0)-(Number(r.ad_spend)||0);if(!gap)return;ctx.fillStyle=gap>0?'rgba(23,107,77,.12)':'rgba(180,66,53,.13)';const left=i===0?p:((x(i-1)+x(i))/2),right=i===rows.length-1?w-p:((x(i)+x(i+1))/2);ctx.fillRect(left,p,Math.max(1,right-left),h-2*p)});
       const active=rows.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
-      const best=[...active].sort((a,b)=>(Number(b.estimated_result)||0)-(Number(a.estimated_result)||0))[0];
-      const worst=[...active].sort((a,b)=>(Number(a.estimated_result)||0)-(Number(b.estimated_result)||0))[0];
-      [best,worst].filter(Boolean).forEach((r,idx)=>{const i=rows.findIndex(day=>day.date===r.date),yy=y(Math.max(Number(r.revenue)||0,Number(r.ad_spend)||0));ctx.fillStyle=idx?'#b44235':'#176b4d';ctx.beginPath();ctx.arc(x(i),yy,5,0,Math.PI*2);ctx.fill();ctx.fillText(`${idx?'Faible':'Fort'} ${r.date.slice(5)} ${euro(r.estimated_result)}`,Math.min(w-190,x(i)+8),Math.max(18,yy-8))});
+      const best=[...active].sort((a,b)=>((Number(b.contribution_margin)||0)-(Number(b.ad_spend)||0))-((Number(a.contribution_margin)||0)-(Number(a.ad_spend)||0)))[0];
+      const worst=[...active].sort((a,b)=>((Number(a.contribution_margin)||0)-(Number(a.ad_spend)||0))-((Number(b.contribution_margin)||0)-(Number(b.ad_spend)||0)))[0];
+      [best,worst].filter(Boolean).forEach((r,idx)=>{const i=rows.findIndex(day=>day.date===r.date),yy=y(Math.max(Number(r.revenue)||0,Number(r.contribution_margin)||0,Number(r.ad_spend)||0));const gap=(Number(r.contribution_margin)||0)-(Number(r.ad_spend)||0);ctx.fillStyle=idx?'#b44235':'#176b4d';ctx.beginPath();ctx.arc(x(i),yy,5,0,Math.PI*2);ctx.fill();ctx.fillText(`${idx?'Faible':'Fort'} ${r.date.slice(5)} ${euro(gap)}`,Math.min(w-190,x(i)+8),Math.max(18,yy-8))});
       const legend=(x0,color,label,dash=false)=>{ctx.strokeStyle=color;ctx.lineWidth=3;ctx.setLineDash(dash?[7,5]:[]);ctx.beginPath();ctx.moveTo(x0,13);ctx.lineTo(x0+18,13);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#151515';ctx.fillText(label,x0+24,17)};
-      legend(p,'#151515','CA');legend(p+75,'#a7c900','Meta');legend(p+160,'#176b4d','CA moyen 7j',true);
-      ctx.fillStyle='#77736b';ctx.fillText(`${profitable}/${rows.length} jours positifs`,w-145,17);
+      legend(p,'#151515','CA');legend(p+75,'#176b4d','Marge');legend(p+170,'#a7c900','Meta',true);
+      ctx.fillStyle='#77736b';ctx.fillText(`${goodMonths}/${rows.length} mois marge > Meta`,w-180,17);
+      if(rows.length){ctx.fillStyle='#77736b';ctx.fillText(rows[0].date,p,h-12);ctx.fillText(rows[rows.length-1].date,w-p-48,h-12)}
     }
     function drawResultChart(rows) {
       const canvas=document.getElementById('resultChart'),ctx=canvas.getContext('2d');
@@ -278,26 +299,28 @@
         : '<strong>Conclusion affiliation :</strong> Le suivi est prêt, mais aucun influenceur n est encore renseigné. La prochaine étape est de créer des codes promo uniques dans Shopify et d ajouter les profils testés.';
       available.textContent=d.stock_totals.available; incoming.textContent=d.stock_totals.incoming;
       const monthlyFixed=Object.values(d.fixed_costs_monthly).reduce((sum,value)=>sum+Number(value),0); dailyFixed.textContent=euro(monthlyFixed/30.4375);
-      const activeDays=d.daily.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
-      const positiveDays=d.daily.filter(r=>Number(r.estimated_result)>0);
-      const bestDay=[...activeDays].sort((a,b)=>(Number(b.estimated_result)||0)-(Number(a.estimated_result)||0))[0];
-      const weakDay=[...activeDays].sort((a,b)=>(Number(a.estimated_result)||0)-(Number(b.estimated_result)||0))[0];
-      const last7=d.daily.slice(-7),prev7=d.daily.slice(-14,-7);
       const sum=(rows,key)=>rows.reduce((total,row)=>total+(Number(row[key])||0),0);
-      const last7Revenue=sum(last7,'revenue'),prev7Revenue=sum(prev7,'revenue');
-      const trendDelta=prev7Revenue?((last7Revenue-prev7Revenue)/prev7Revenue*100):null;
+      const trendSource=(d.trend_history?.daily||d.daily);
+      const trendMonths=aggregateMonthly(trendSource);
+      const activeMonths=trendMonths.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
+      const trendRevenue=sum(trendMonths,'revenue');
+      const trendMargin=sum(trendMonths,'contribution_margin');
+      const trendMeta=sum(trendMonths,'ad_spend');
+      const trendGap=trendMargin-trendMeta;
+      const goodMonths=trendMonths.filter(r=>Number(r.contribution_margin)>Number(r.ad_spend)).length;
+      const bestMonth=[...activeMonths].sort((a,b)=>((Number(b.contribution_margin)||0)-(Number(b.ad_spend)||0))-((Number(a.contribution_margin)||0)-(Number(a.ad_spend)||0)))[0];
+      const weakMonth=[...activeMonths].sort((a,b)=>((Number(a.contribution_margin)||0)-(Number(a.ad_spend)||0))-((Number(b.contribution_margin)||0)-(Number(b.ad_spend)||0)))[0];
       trendCards.innerHTML=[
-        ['Tendance CA 7j',trendDelta==null?'-':`${trendDelta>=0?'+':''}${number(trendDelta)} %`,`${euro(last7Revenue)} sur 7 jours`,trendDelta],
-        ['Jours positifs',`${number(positiveDays.length)} / ${number(d.daily.length)}`,'jours avec bénéfice estimé',positiveDays.length-d.daily.length/2],
-        ['Meilleur jour',bestDay?euro(bestDay.estimated_result):'-',bestDay?`${bestDay.date} · ${euro(bestDay.revenue)} CA`:'aucune activité',bestDay?bestDay.estimated_result:null],
-        ['Point faible',weakDay?euro(weakDay.estimated_result):'-',weakDay?`${weakDay.date} · ${euro(weakDay.ad_spend)} Meta`:'aucune activité',weakDay?weakDay.estimated_result:null]
+        ['CA 24 mois',euro(trendRevenue),`${trendMonths[0]?.date||'-'} → ${trendMonths.at(-1)?.date||'-'}`,trendRevenue],
+        ['Marge − Meta',euro(trendGap),`${euro(trendMargin)} marge · ${euro(trendMeta)} Meta`,trendGap],
+        ['Meilleur mois',bestMonth?euro((Number(bestMonth.contribution_margin)||0)-(Number(bestMonth.ad_spend)||0)):'-',bestMonth?`${bestMonth.date} · ${euro(bestMonth.revenue)} CA`:'aucune activité',bestMonth?(Number(bestMonth.contribution_margin)||0)-(Number(bestMonth.ad_spend)||0):null],
+        ['Point faible',weakMonth?euro((Number(weakMonth.contribution_margin)||0)-(Number(weakMonth.ad_spend)||0)):'-',weakMonth?`${weakMonth.date} · ${euro(weakMonth.ad_spend)} Meta`:'aucune activité',weakMonth?(Number(weakMonth.contribution_margin)||0)-(Number(weakMonth.ad_spend)||0):null]
       ].map(([label,value,note,signal])=>`<div class="trend-card"><span class="eyebrow">${esc(label)}</span><strong class="${signal==null?'':(signal>=0?'positive':'negative')}">${esc(value)}</strong><small>${esc(note)}</small></div>`).join('');
-      const metaWasteDays=d.daily.filter(r=>Number(r.ad_spend)>0&&Number(r.orders)===0);
-      chartInsight.innerHTML=Number(t.estimated_result)<0
-        ? `<strong>Lecture graphique :</strong> la période reste négative (${euro(t.estimated_result)}). Le point faible principal est ${number(metaWasteDays.length)} jour(s) avec dépense Meta sans commande. Le meilleur signal est ${bestDay?`${bestDay.date} (${euro(bestDay.estimated_result)})`:'encore insuffisant'}.`
-        : `<strong>Lecture graphique :</strong> la période est positive (${euro(t.estimated_result)}). Surveille surtout les jours où Meta monte plus vite que le CA.`;
+      chartInsight.innerHTML=trendGap<0
+        ? `<strong>Lecture graphique :</strong> sur les 24 derniers mois, les coûts Meta dépassent la marge de ${euro(Math.abs(trendGap))}. Le mois le plus faible est ${weakMonth?`${weakMonth.date} (${euro((Number(weakMonth.contribution_margin)||0)-(Number(weakMonth.ad_spend)||0))})`:'non identifiable'}.`
+        : `<strong>Lecture graphique :</strong> sur les 24 derniers mois, la marge couvre Meta avec ${euro(trendGap)} d'avance. Le meilleur mois est ${bestMonth?`${bestMonth.date} (${euro((Number(bestMonth.contribution_margin)||0)-(Number(bestMonth.ad_spend)||0))})`:'non identifiable'}.`;
       warnings.innerHTML=d.warnings.map(w=>`<li>${esc(w)}</li>`).join('');
-      drawChart(d.daily);
+      drawChart(trendMonths);
       drawResultChart(d.daily);
       table('stock',['Produit','Taille / couleur','Origine','Statut','Initial','Restant','Shopify'],d.stock.map(r=>`<tr><td>${esc(r.product)}</td><td>${esc(r.variant)}</td><td>${esc(r.origin)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td><td>${r.initial}</td><td>${r.remaining}</td><td>${r.shopify_quantity??'non lie'}</td></tr>`));
       table('orders',['Commande','Date','CA','Couts','Marge','Articles'],d.orders.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${euro(r.variable_costs)}</td><td class="${r.margin>=0?'positive':'negative'}">${euro(r.margin)}</td><td>${r.units}</td></tr>`));

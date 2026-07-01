@@ -1330,6 +1330,13 @@ class Cache:
             force=force,
             include_analytics=False,
         )
+        trend_since = max(cumulative_since, until - timedelta(days=730))
+        trend_until = min(until, date.today())
+        trend_daily = [
+            row
+            for row in cumulative_data["daily"]
+            if trend_since.isoformat() <= row["date"] <= trend_until.isoformat()
+        ]
         response = deepcopy(period_data)
         response["cumulative"] = {
             "period": cumulative_data["period"],
@@ -1344,6 +1351,26 @@ class Cache:
                 if self.builder.config.get("historical_shopify_orders_complete")
                 else "Historique des commandes Shopify au-dela de 60 jours"
             ),
+        }
+        response["trend_history"] = {
+            "period": {
+                "since": trend_since.isoformat(),
+                "until": trend_until.isoformat(),
+                "days": len(trend_daily),
+            },
+            "daily": trend_daily,
+            "totals": {
+                "revenue": round(sum(row["revenue"] for row in trend_daily), 2),
+                "contribution_margin": round(
+                    sum(row["contribution_margin"] for row in trend_daily), 2
+                ),
+                "ad_spend": round(sum(row["ad_spend"] for row in trend_daily), 2),
+                "estimated_result": round(
+                    sum(row["estimated_result"] for row in trend_daily), 2
+                ),
+            },
+            "grain": "daily_source_monthly_display",
+            "label": "24 derniers mois",
         }
         return response
 
