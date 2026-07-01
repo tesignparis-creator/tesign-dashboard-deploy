@@ -21,6 +21,15 @@ ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 HTML_PATH = ROOT / "dashboard.html"
 STATIC_PATH = ROOT / "static"
+DEFAULT_AFFILIATE_CONFIG = {
+    "favikon_monthly_cost": 200.0,
+    "favikon_started_at": "2026-07-01",
+    "default_commission_rate": 0.15,
+    "default_discount_rate": 0.10,
+    "default_product_seed_cost": 18.0,
+    "influencers": [],
+    "manual_sales": [],
+}
 
 
 def load_local_env() -> None:
@@ -155,6 +164,7 @@ class ShopifyClient:
               currentTotalDiscountsSet { shopMoney { amount currencyCode } }
               currentShippingPriceSet { shopMoney { amount currencyCode } }
               totalRefundedSet { shopMoney { amount currencyCode } }
+              discountCodes
               shippingLines(first: 10) { nodes { title } }
               lineItems(first: 20) {
                 nodes {
@@ -369,6 +379,35 @@ def metric_action_value(
     return 0.0
 
 
+def affiliate_code_index(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    for influencer in config.get("affiliate", {}).get("influencers", []):
+        codes = list(influencer.get("codes") or [])
+        if influencer.get("code"):
+            codes.append(influencer["code"])
+        for code in codes:
+            normalized = str(code or "").strip().lower()
+            if normalized:
+                index[normalized] = influencer
+    return index
+
+
+def prorated_monthly_cost(
+    amount: float,
+    since: date,
+    until: date,
+    *,
+    starts_at: str | None = None,
+    ends_at: str | None = None,
+) -> float:
+    effective_since = max(since, date.fromisoformat(starts_at)) if starts_at else since
+    effective_until = min(until, date.fromisoformat(ends_at)) if ends_at else until
+    if effective_until < effective_since:
+        return 0.0
+    period_days = (effective_until - effective_since).days + 1
+    return round(amount * period_days / 30.4375, 2)
+
+
 @dataclass
 class Allocation:
     model_name: str
@@ -567,6 +606,48 @@ class DashboardBuilder:
         )
         order_details: list[dict[str, Any]] = []
         sold_model_units: dict[str, int] = defaultdict(int)
+        affiliate_config = self.config.get("affiliate", {})
+        affiliate_index = affiliate_code_index(self.config)
+        affiliate_rows: dict[str, dict[str, Any]] = {}
+        for influencer in affiliate_config.get("influencers", []):
+            name = influencer.get("name") or influencer.get("handle") or "Influenceur"
+            key = name.lower()
+            codes = list(influencer.get("codes") or [])
+            if influencer.get("code"):
+                codes.append(influencer["code"])
+            seeded_units = int(influencer.get("seeded_units") or 0)
+            seed_cost = money(
+                influencer.get(
+                    "product_seed_cost",
+                    affiliate_config.get("default_product_seed_cost", 0),
+                )
+            )
+            affiliate_rows[key] = {
+                "name": name,
+                "handle": influencer.get("handle"),
+                "codes": sorted({str(code).strip() for code in codes if str(code).strip()}),
+                "commission_rate": float(
+                    influencer.get(
+                        "commission_rate",
+                        affiliate_config.get("default_commission_rate", 0.0),
+                    )
+                ),
+                "discount_rate": float(
+                    influencer.get(
+                        "discount_rate",
+                        affiliate_config.get("default_discount_rate", 0.0),
+                    )
+                ),
+                "seeded_units": seeded_units,
+                "seed_cost": seed_cost,
+                "seed_total_cost": round(seeded_units * seed_cost, 2),
+                "orders": 0,
+                "units": 0,
+                "revenue": 0.0,
+                "discounts": 0.0,
+                "contribution_margin": 0.0,
+                "commission_due": 0.0,
+            }
 
         included_statuses = {"PAID", "PARTIALLY_PAID", "PARTIALLY_REFUNDED"}
         valid_orders = [
@@ -579,14 +660,80 @@ class DashboardBuilder:
         for order in valid_orders:
             day = iso_date(order["createdAt"])
             revenue = money(order["currentTotalPriceSet"]["shopMoney"]["amount"])
+            discounts = money(order["currentTotalDiscountsSet"]["shopMoney"]["amount"])
             costs = engine.order_cost(order)
             units = costs["units"]
+            discount_codes = [
+                str(code).strip()
+                for code in order.get("discountCodes", [])
+                if str(code).strip()
+            ]
+            matched_affiliate = None
+            matched_code = None
+            for code in discount_codes:
+                influencer = affiliate_index.get(code.lower())
+                if influencer:
+                    matched_affiliate = influencer
+                    matched_code = code
+                    break
             daily[day]["revenue"] += revenue
             daily[day]["orders"] += 1
             daily[day]["units"] += units
             daily[day]["variable_costs"] += costs["total"]
             daily[day]["contribution_margin"] += revenue - costs["total"]
             daily[day]["urssaf_estimated"] += costs["breakdown"].get("urssaf", 0.0)
+            if matched_affiliate:
+                name = (
+                    matched_affiliate.get("name")
+                    or matched_affiliate.get("handle")
+                    or matched_code
+                )
+                key = name.lower()
+                if key not in affiliate_rows:
+                    affiliate_rows[key] = {
+                        "name": name,
+                        "handle": matched_affiliate.get("handle"),
+                        "codes": [matched_code],
+                        "commission_rate": float(
+                            matched_affiliate.get(
+                                "commission_rate",
+                                affiliate_config.get("default_commission_rate", 0.0),
+                            )
+                        ),
+                        "discount_rate": float(
+                            matched_affiliate.get(
+                                "discount_rate",
+                                affiliate_config.get("default_discount_rate", 0.0),
+                            )
+                        ),
+                        "seeded_units": int(matched_affiliate.get("seeded_units") or 0),
+                        "seed_cost": money(
+                            matched_affiliate.get(
+                                "product_seed_cost",
+                                affiliate_config.get("default_product_seed_cost", 0),
+                            )
+                        ),
+                        "seed_total_cost": 0.0,
+                        "orders": 0,
+                        "units": 0,
+                        "revenue": 0.0,
+                        "discounts": 0.0,
+                        "contribution_margin": 0.0,
+                        "commission_due": 0.0,
+                    }
+                    affiliate_rows[key]["seed_total_cost"] = round(
+                        affiliate_rows[key]["seeded_units"] * affiliate_rows[key]["seed_cost"],
+                        2,
+                    )
+                row = affiliate_rows[key]
+                if matched_code not in row["codes"]:
+                    row["codes"].append(matched_code)
+                row["orders"] += 1
+                row["units"] += units
+                row["revenue"] += revenue
+                row["discounts"] += discounts
+                row["contribution_margin"] += revenue - costs["total"]
+                row["commission_due"] += round(revenue * row["commission_rate"], 2)
             for allocation in costs["allocations"]:
                 sold_model_units[allocation["cost_model"]] += 1
             order_details.append(
@@ -596,6 +743,7 @@ class DashboardBuilder:
                     "financial_status": order.get("displayFinancialStatus"),
                     "revenue": revenue,
                     "variable_costs": costs["total"],
+                    "discount_codes": discount_codes,
                     "margin": round(revenue - costs["total"], 2),
                     "units": units,
                     "allocations": costs["allocations"],
@@ -878,6 +1026,134 @@ class DashboardBuilder:
             )
             margin_profiles.append(profile)
 
+        for sale in affiliate_config.get("manual_sales", []):
+            if not since.isoformat() <= sale.get("date", "") <= until.isoformat():
+                continue
+            name = sale.get("influencer") or sale.get("name") or sale.get("code") or "Influenceur"
+            key = str(name).lower()
+            if key not in affiliate_rows:
+                commission_rate = float(
+                    sale.get(
+                        "commission_rate",
+                        affiliate_config.get("default_commission_rate", 0.0),
+                    )
+                )
+                affiliate_rows[key] = {
+                    "name": name,
+                    "handle": sale.get("handle"),
+                    "codes": [sale.get("code")] if sale.get("code") else [],
+                    "commission_rate": commission_rate,
+                    "discount_rate": float(
+                        sale.get(
+                            "discount_rate",
+                            affiliate_config.get("default_discount_rate", 0.0),
+                        )
+                    ),
+                    "seeded_units": int(sale.get("seeded_units") or 0),
+                    "seed_cost": money(
+                        sale.get(
+                            "product_seed_cost",
+                            affiliate_config.get("default_product_seed_cost", 0),
+                        )
+                    ),
+                    "seed_total_cost": 0.0,
+                    "orders": 0,
+                    "units": 0,
+                    "revenue": 0.0,
+                    "discounts": 0.0,
+                    "contribution_margin": 0.0,
+                    "commission_due": 0.0,
+                }
+                affiliate_rows[key]["seed_total_cost"] = round(
+                    affiliate_rows[key]["seeded_units"] * affiliate_rows[key]["seed_cost"],
+                    2,
+                )
+            row = affiliate_rows[key]
+            revenue = money(sale.get("revenue"))
+            units = int(sale.get("units") or sale.get("orders") or 0)
+            contribution = (
+                money(sale.get("contribution_margin"))
+                if sale.get("contribution_margin") is not None
+                else round(revenue * current_margin_rate, 2)
+            )
+            row["orders"] += int(sale.get("orders") or 1)
+            row["units"] += units
+            row["revenue"] += revenue
+            row["discounts"] += money(sale.get("discounts"))
+            row["contribution_margin"] += contribution
+            row["commission_due"] += round(revenue * row["commission_rate"], 2)
+            if sale.get("code") and sale["code"] not in row["codes"]:
+                row["codes"].append(sale["code"])
+
+        favikon_monthly_cost = money(affiliate_config.get("favikon_monthly_cost"))
+        favikon_period_cost = prorated_monthly_cost(
+            favikon_monthly_cost,
+            since,
+            until,
+            starts_at=affiliate_config.get("favikon_started_at"),
+            ends_at=affiliate_config.get("favikon_ended_at"),
+        )
+        affiliate_influencers = []
+        affiliate_count_for_allocation = max(1, len(affiliate_rows))
+        favikon_share = (
+            round(favikon_period_cost / affiliate_count_for_allocation, 2)
+            if affiliate_rows
+            else 0.0
+        )
+        for row in affiliate_rows.values():
+            row["codes"] = sorted({str(code).strip() for code in row["codes"] if str(code).strip()})
+            row["revenue"] = round(row["revenue"], 2)
+            row["discounts"] = round(row["discounts"], 2)
+            row["contribution_margin"] = round(row["contribution_margin"], 2)
+            row["commission_due"] = round(row["commission_due"], 2)
+            row["direct_result"] = round(
+                row["contribution_margin"]
+                - row["commission_due"]
+                - row["seed_total_cost"],
+                2,
+            )
+            row["favikon_share"] = favikon_share
+            row["net_result"] = round(row["direct_result"] - favikon_share, 2)
+            row["break_even_sales"] = (
+                int(-(-max(0.0, row["seed_total_cost"] + favikon_share)
+                      // max(0.01, row["contribution_margin"] / max(1, row["units"])
+                             - (row["revenue"] / max(1, row["units"])) * row["commission_rate"])))
+                if row["units"]
+                else None
+            )
+            row["status"] = "rentable" if row["net_result"] >= 0 else "perte"
+            affiliate_influencers.append(row)
+        affiliate_influencers.sort(key=lambda row: row["net_result"], reverse=True)
+        affiliate_totals = {
+            "favikon_monthly_cost": favikon_monthly_cost,
+            "favikon_period_cost": favikon_period_cost,
+            "orders": sum(row["orders"] for row in affiliate_influencers),
+            "units": sum(row["units"] for row in affiliate_influencers),
+            "revenue": round(sum(row["revenue"] for row in affiliate_influencers), 2),
+            "discounts": round(sum(row["discounts"] for row in affiliate_influencers), 2),
+            "contribution_margin": round(
+                sum(row["contribution_margin"] for row in affiliate_influencers), 2
+            ),
+            "commission_due": round(
+                sum(row["commission_due"] for row in affiliate_influencers), 2
+            ),
+            "seed_total_cost": round(
+                sum(row["seed_total_cost"] for row in affiliate_influencers), 2
+            ),
+            "direct_result": round(
+                sum(row["direct_result"] for row in affiliate_influencers), 2
+            ),
+            "net_result": round(
+                sum(row["direct_result"] for row in affiliate_influencers)
+                - favikon_period_cost,
+                2,
+            ),
+            "profitable_count": sum(
+                1 for row in affiliate_influencers if row["net_result"] >= 0
+            ),
+            "loss_count": sum(1 for row in affiliate_influencers if row["net_result"] < 0),
+        }
+
         legacy_bank_account = self.config.get("bank_account", {})
         bank_accounts = deepcopy(self.config.get("bank_accounts", []))
         bank_transactions: list[dict[str, Any]] = []
@@ -992,6 +1268,23 @@ class DashboardBuilder:
                 "manual_expenses": manual_expenses,
             },
             "campaign_performance": campaign_performance,
+            "affiliate": {
+                "totals": affiliate_totals,
+                "influencers": affiliate_influencers,
+                "settings": {
+                    "favikon_started_at": affiliate_config.get("favikon_started_at"),
+                    "favikon_ended_at": affiliate_config.get("favikon_ended_at"),
+                    "default_commission_rate": float(
+                        affiliate_config.get("default_commission_rate", 0.0)
+                    ),
+                    "default_discount_rate": float(
+                        affiliate_config.get("default_discount_rate", 0.0)
+                    ),
+                    "default_product_seed_cost": money(
+                        affiliate_config.get("default_product_seed_cost")
+                    ),
+                },
+            },
             "traffic_source": "Shopify Analytics sessions",
             "margin_profiles": margin_profiles,
             "stock": stock,
@@ -1145,8 +1438,13 @@ def load_config() -> dict[str, Any]:
     load_local_env()
     environment_config = os.getenv("TESIGN_CONFIG_JSON")
     if environment_config:
-        return json.loads(environment_config)
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        config = json.loads(environment_config)
+    else:
+        config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    affiliate_config = deepcopy(DEFAULT_AFFILIATE_CONFIG)
+    affiliate_config.update(config.get("affiliate", {}))
+    config["affiliate"] = affiliate_config
+    return config
 
 
 def main() -> None:

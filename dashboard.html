@@ -53,6 +53,7 @@
     .bank-card small { color:var(--muted); }
     .bank-card.not-connected strong { color:var(--muted); }
     .bank-transactions { margin-top:12px; max-height:260px; }
+    .affiliate-table { margin-top:12px; }
     .positive { color:var(--good); } .negative { color:var(--bad); }
     .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-top:12px; }
     .panel { padding:18px; overflow:hidden; }
@@ -70,6 +71,8 @@
     .pill { display:inline-block; border-radius:999px; padding:3px 7px; background:#eceae4; font-size:10px; font-weight:700; text-transform:uppercase; }
     .pill.available { background:#daf2e5; color:var(--good); }
     .pill.incoming { background:#fff0c9; color:#755500; }
+    .pill.rentable { background:#daf2e5; color:var(--good); }
+    .pill.perte { background:#ffe6e2; color:var(--bad); }
     .warnings { margin:12px 0 0; padding:0; list-style:none; }
     .warnings li { background:#fff2d6; border:1px solid #efd99e; border-radius:8px; margin-top:7px; padding:9px 11px; }
     .note { margin:-7px 0 13px; color:var(--muted); font-size:12px; }
@@ -113,6 +116,12 @@
       </div>
       <div class="campaign-roas"><h2>ROAS par campagne</h2><div class="table-wrap"><table id="campaigns"></table></div></div>
       <p id="metaConclusion" class="block-conclusion"></p>
+    </section>
+    <section class="panel kpi-block">
+      <h2>Affiliation & influenceurs</h2>
+      <div id="affiliateCards" class="kpi-grid meta"></div>
+      <div class="table-wrap affiliate-table"><table id="affiliateInfluencers"></table></div>
+      <p id="affiliateConclusion" class="block-conclusion"></p>
     </section>
     <section class="grid">
       <div class="panel"><h2>CA et dépenses Meta par jour</h2><canvas id="chart" width="900" height="230"></canvas><h2 class="chart-subtitle">Résultat estimé par jour</h2><canvas id="resultChart" class="result-chart" width="900" height="170"></canvas><p class="note">Barre verte : bénéfice du jour. Barre rouge : perte du jour. Résultat = CA − coûts des ventes − Meta − Geremy − charges fixes − autres dépenses.</p></div>
@@ -226,6 +235,24 @@
         return `<div class="margin-item${cardClass}"><span class="eyebrow">${esc(p.label)}</span><strong>${number(Number(p.margin_rate)*100)} %</strong><small>${esc(p.shipping)}</small>${status}<div class="projection"><small>Résultat projeté sur la période</small><strong class="${p.projected_result>=0?'positive':'negative'}">${euro(p.projected_result)}</strong><small>si tout le CA était à cette marge</small></div></div>`;
       }).join('');
       table('campaigns',['Campagne','Dépenses','Achats attribués','CA attribué','ROAS','CPA'],d.campaign_performance.map(r=>`<tr><td>${esc(r.campaign)}</td><td>${euro(r.spend)}</td><td>${number(r.purchases)}</td><td>${euro(r.purchase_value)}</td><td>${number(r.roas)}</td><td>${euro(r.cpa)}</td></tr>`));
+      const affiliate=d.affiliate||{totals:{},influencers:[]};
+      const affiliateTotals=affiliate.totals||{};
+      const affiliateRows=affiliate.influencers||[];
+      const affiliateNet=Number(affiliateTotals.net_result)||0;
+      const affiliateSummary=[
+        ['Coût Favikon période',euro(affiliateTotals.favikon_period_cost||0),`${euro(affiliateTotals.favikon_monthly_cost||0)} / mois`,-(affiliateTotals.favikon_period_cost||0)],
+        ['Résultat net affiliation',euro(affiliateNet),'après commissions, produits envoyés et Favikon',affiliateNet],
+        ['Influenceurs rentables',`${number(affiliateTotals.profitable_count||0)} / ${number(affiliateRows.length)}`,'triés par résultat net'],
+        ['Ventes affiliées',number(affiliateTotals.orders||0),`${euro(affiliateTotals.revenue||0)} de CA tracké`]
+      ];
+      affiliateCards.innerHTML=affiliateSummary.map(cardHtml).join('');
+      const emptyAffiliate='<tr><td colspan="10">Aucun influenceur renseigné pour l instant. Crée un code Shopify par influenceur puis ajoute-le dans la configuration affiliation.</td></tr>';
+      table('affiliateInfluencers',['Influenceur','Codes','Ventes','CA','Marge','Commission','Produits envoyés','Part Favikon','Résultat net','Statut'],affiliateRows.length?affiliateRows.map(r=>`<tr><td>${esc(r.name)}${r.handle?`<br><small>${esc(r.handle)}</small>`:''}</td><td>${esc((r.codes||[]).join(', '))}</td><td>${number(r.orders)}</td><td>${euro(r.revenue)}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.commission_due)}</td><td>${euro(r.seed_total_cost)}<br><small>${number(r.seeded_units)} tee-shirt(s)</small></td><td>${euro(r.favikon_share)}</td><td class="${r.net_result>=0?'positive':'negative'}">${euro(r.net_result)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td></tr>`):[emptyAffiliate]);
+      affiliateConclusion.innerHTML=affiliateRows.length
+        ? affiliateNet>=0
+          ? `<strong>Conclusion affiliation :</strong> Le canal est rentable sur la période avec ${euro(affiliateNet)} net après Favikon. Les profils en haut du tableau méritent d être relancés en priorité.`
+          : `<strong>Conclusion affiliation :</strong> Le canal est en perte de ${euro(Math.abs(affiliateNet))} sur la période après Favikon. Il faut couper les profils qui ne génèrent pas au moins 2 à 3 ventes après envoi produit.`
+        : '<strong>Conclusion affiliation :</strong> Le suivi est prêt, mais aucun influenceur n est encore renseigné. La prochaine étape est de créer des codes promo uniques dans Shopify et d ajouter les profils testés.';
       available.textContent=d.stock_totals.available; incoming.textContent=d.stock_totals.incoming;
       const monthlyFixed=Object.values(d.fixed_costs_monthly).reduce((sum,value)=>sum+Number(value),0); dailyFixed.textContent=euro(monthlyFixed/30.4375);
       warnings.innerHTML=d.warnings.map(w=>`<li>${esc(w)}</li>`).join('');
