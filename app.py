@@ -22,6 +22,18 @@ CONFIG_PATH = ROOT / "config.json"
 HTML_PATH = ROOT / "dashboard.html"
 
 
+def load_local_env() -> None:
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
 def money(value: Any) -> float:
     try:
         return round(float(value or 0), 2)
@@ -196,6 +208,91 @@ class ShopifyClient:
             "completed_checkouts": int(
                 row.get("sessions_that_completed_checkout") or 0
             ),
+        }
+
+
+class BridgeClient:
+    def __init__(self) -> None:
+        self.client_id = os.environ.get("BRIDGE_CLIENT_ID", "").strip()
+        self.client_secret = os.environ.get("BRIDGE_CLIENT_SECRET", "").strip()
+        self.environment = os.environ.get("BRIDGE_ENV", "sandbox").strip() or "sandbox"
+        self.external_user_id = (
+            os.environ.get("BRIDGE_EXTERNAL_USER_ID", "tesign-owner").strip()
+            or "tesign-owner"
+        )
+        self.base_url = "https://api.bridgeapi.io/v3/aggregation"
+        self._token = ""
+        self._expires_at = 0.0
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_id and self.client_secret)
+
+    def headers(self, *, authenticated: bool = False) -> dict[str, str]:
+        headers = {
+            "Bridge-Version": "2025-01-15",
+            "Client-Id": self.client_id,
+            "Client-Secret": self.client_secret,
+            "accept": "application/json",
+        }
+        if authenticated:
+            headers["Authorization"] = f"Bearer {self.token()}"
+        return headers
+
+    def ensure_user(self) -> None:
+        request_json(
+            f"{self.base_url}/users",
+            method="POST",
+            headers=self.headers(),
+            payload={"external_user_id": self.external_user_id},
+        )
+
+    def token(self) -> str:
+        if self._token and time.time() < self._expires_at - 120:
+            return self._token
+        try:
+            result = request_json(
+                f"{self.base_url}/authorization/token",
+                method="POST",
+                headers=self.headers(),
+                payload={"external_user_id": self.external_user_id},
+            )
+        except RuntimeError:
+            self.ensure_user()
+            result = request_json(
+                f"{self.base_url}/authorization/token",
+                method="POST",
+                headers=self.headers(),
+                payload={"external_user_id": self.external_user_id},
+            )
+        self._token = result["access_token"]
+        expires_at = result.get("expires_at")
+        if expires_at:
+            try:
+                parsed = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                self._expires_at = parsed.timestamp()
+            except ValueError:
+                self._expires_at = time.time() + 7200
+        else:
+            self._expires_at = time.time() + 7200
+        return self._token
+
+    def list_resources(self, path: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        result = request_json(
+            f"{self.base_url}/{path}?limit={limit}",
+            headers=self.headers(authenticated=True),
+        )
+        return list(result.get("resources") or [])
+
+    def snapshot(self) -> dict[str, Any]:
+        if not self.enabled:
+            return {"enabled": False, "accounts": [], "transactions": []}
+        return {
+            "enabled": True,
+            "environment": self.environment,
+            "external_user_id": self.external_user_id,
+            "accounts": self.list_resources("accounts", limit=100),
+            "transactions": self.list_resources("transactions", limit=20),
         }
 
 
@@ -422,6 +519,7 @@ class DashboardBuilder:
         self.config = config
         self.shopify = ShopifyClient(config)
         self.meta = MetaClient(config)
+        self.bridge = BridgeClient()
 
     def build(
         self, since: date, until: date, *, include_analytics: bool = True
@@ -781,6 +879,70 @@ class DashboardBuilder:
 
         legacy_bank_account = self.config.get("bank_account", {})
         bank_accounts = deepcopy(self.config.get("bank_accounts", []))
+        bank_transactions: list[dict[str, Any]] = []
+        bridge_status: dict[str, Any] = {
+            "enabled": self.bridge.enabled,
+            "environment": self.bridge.environment,
+            "connected": False,
+        }
+        public_deployment = os.environ.get("PUBLIC_DEPLOYMENT", "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        show_bridge_transactions = (
+            os.environ.get("BRIDGE_SHOW_TRANSACTIONS", "").lower()
+            in {"1", "true", "yes"}
+        ) or not public_deployment
+        if self.bridge.enabled:
+            try:
+                bridge_snapshot = self.bridge.snapshot()
+                bridge_accounts = bridge_snapshot["accounts"]
+                if bridge_accounts:
+                    bank_accounts = [
+                        {
+                            "label": account.get("name") or f"Compte {account.get('id')}",
+                            "balance": account.get("balance"),
+                            "currency_code": account.get("currency_code", "EUR"),
+                            "recorded_at": iso_date(account.get("updated_at")),
+                            "source": (
+                                "bridge_sandbox"
+                                if self.bridge.environment == "sandbox"
+                                else "bridge"
+                            ),
+                            "account_id": account.get("id"),
+                            "type": account.get("type"),
+                            "status": account.get("last_refresh_status"),
+                        }
+                        for account in bridge_accounts
+                    ]
+                if show_bridge_transactions:
+                    bank_transactions = [
+                        {
+                            "id": transaction.get("id"),
+                            "date": iso_date(transaction.get("date")),
+                            "description": transaction.get("clean_description")
+                            or transaction.get("provider_description")
+                            or "Transaction",
+                            "amount": transaction.get("amount"),
+                            "currency_code": transaction.get("currency_code", "EUR"),
+                            "account_id": transaction.get("account_id"),
+                            "operation_type": transaction.get("operation_type"),
+                        }
+                        for transaction in bridge_snapshot["transactions"]
+                        if not transaction.get("deleted")
+                    ]
+                bridge_status.update(
+                    {
+                        "connected": bool(bridge_accounts),
+                        "account_count": len(bridge_accounts),
+                        "transaction_count": len(bridge_snapshot["transactions"]),
+                        "transactions_visible": show_bridge_transactions,
+                    }
+                )
+            except Exception as exc:
+                bridge_status["error"] = str(exc)[:240]
+                warnings.append(f"Bridge banking sync failed: {bridge_status['error']}")
         if not bank_accounts:
             bank_accounts = [
                 {
@@ -824,6 +986,8 @@ class DashboardBuilder:
                 },
                 "bank_account": self.config.get("bank_account", {}),
                 "bank_accounts": bank_accounts,
+                "bank_transactions": bank_transactions,
+                "bridge": bridge_status,
                 "manual_expenses": manual_expenses,
             },
             "campaign_performance": campaign_performance,
@@ -971,6 +1135,7 @@ def make_handler(cache: Cache):
 
 
 def load_config() -> dict[str, Any]:
+    load_local_env()
     environment_config = os.getenv("TESIGN_CONFIG_JSON")
     if environment_config:
         return json.loads(environment_config)

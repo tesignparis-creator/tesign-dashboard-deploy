@@ -51,6 +51,7 @@
     .bank-card strong { display:block; margin:8px 0 4px; font-size:24px; letter-spacing:-.7px; }
     .bank-card small { color:var(--muted); }
     .bank-card.not-connected strong { color:var(--muted); }
+    .bank-transactions { margin-top:12px; max-height:260px; }
     .positive { color:var(--good); } .negative { color:var(--bad); }
     .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-top:12px; }
     .panel { padding:18px; overflow:hidden; }
@@ -93,6 +94,7 @@
       <h2>Compte bancaire</h2>
       <div id="bankAccounts" class="bank-grid"></div>
       <p id="bankConclusion" class="block-conclusion"></p>
+      <div id="bankTransactionsWrap" class="table-wrap bank-transactions" hidden><table id="bankTransactions"></table></div>
     </section>
     <section class="panel kpi-block"><h2>Santé globale</h2><div id="healthCards" class="kpi-grid"></div><p id="healthConclusion" class="block-conclusion"></p></section>
     <section class="panel kpi-block"><h2>Vente</h2><div id="salesCards" class="kpi-grid sales"></div><p id="salesConclusion" class="block-conclusion"></p></section>
@@ -126,7 +128,8 @@
     <section class="panel" style="margin-top:12px"><h2>Performance quotidienne croisee</h2><p class="note">Le resultat estime inclut <strong id="dailyFixed">-</strong> de charges fixes par jour, meme sans vente.</p><div class="table-wrap"><table id="daily"></table></div></section>
   </main>
   <script>
-    const euro = v => v == null ? '-' : new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(v);
+    const moneyFmt = (v,currency='EUR') => v == null ? '-' : new Intl.NumberFormat('fr-FR',{style:'currency',currency:currency||'EUR'}).format(v);
+    const euro = v => moneyFmt(v,'EUR');
     const number = v => v == null ? '-' : new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(v);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const today = new Date(); const prior = new Date(today); prior.setDate(today.getDate()-90);
@@ -168,16 +171,24 @@
       cardsEl=document.getElementById('cards');cardsEl.innerHTML=cumulativeCard;
       const cardHtml=c=>`<div class="card"><span class="eyebrow">${esc(c[0])}</span><strong class="${c[3]==null?'':(c[3]>=0?'positive':'negative')}">${esc(c[1])}</strong><small>${esc(c[2])}</small></div>`;
       const accounts=d.financial?.bank_accounts||[];
+      const bridge=d.financial?.bridge||{};
       bankAccounts.innerHTML=accounts.map(account=>{
         const balance=account.balance==null?null:Number(account.balance);
         const connected=account.source&&account.source!=='non_connecte';
-        const source=account.source==='manual'?'manuel':(account.source==='open_banking'?'Open Banking':(connected?account.source:'non connecté'));
+        const source=account.source==='manual'?'manuel':(account.source==='bridge_sandbox'?'Bridge sandbox':(account.source==='bridge'?'Bridge':(account.source==='open_banking'?'Open Banking':(connected?account.source:'non connecté'))));
         const recorded=account.recorded_at?`au ${esc(account.recorded_at)}`:'temps réel non activé';
-        return `<div class="bank-card${connected?'':' not-connected'}"><span class="eyebrow">${esc(account.label)}</span><strong class="${balance==null?'':(balance>=0?'positive':'negative')}">${balance==null?'Non renseigné':euro(balance)}</strong><small>Source : ${esc(source)} · ${recorded}</small></div>`;
+        return `<div class="bank-card${connected?'':' not-connected'}"><span class="eyebrow">${esc(account.label)}</span><strong class="${balance==null?'':(balance>=0?'positive':'negative')}">${balance==null?'Non renseigné':moneyFmt(balance,account.currency_code||'EUR')}</strong><small>Source : ${esc(source)} · ${recorded}</small></div>`;
       }).join('');
       const connectedAccounts=accounts.filter(account=>account.source&&account.source!=='non_connecte').length;
-      bankConclusion.innerHTML=connectedAccounts
-        ? '<strong>Conclusion bancaire :</strong> Les soldes affichés viennent des données disponibles. La synchronisation bancaire temps réel n’est pas encore branchée sur une API sécurisée.'
+      const transactions=d.financial?.bank_transactions||[];
+      bankTransactionsWrap.hidden=!transactions.length;
+      if(transactions.length){
+        table('bankTransactions',['Date','Description','Type','Montant'],transactions.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.description)}</td><td>${esc(r.operation_type||'-')}</td><td class="${Number(r.amount)>=0?'positive':'negative'}">${moneyFmt(r.amount,r.currency_code||'EUR')}</td></tr>`));
+      }
+      bankConclusion.innerHTML=bridge.connected
+        ? `<strong>Conclusion bancaire :</strong> Bridge est connecté en ${esc(bridge.environment||'sandbox')} avec ${number(bridge.account_count)} comptes synchronisés. ${bridge.transactions_visible?'Transactions de test visibles localement.':'Transactions détaillées masquées sur le déploiement public.'}`
+        : connectedAccounts
+        ? '<strong>Conclusion bancaire :</strong> Les soldes affichés viennent des données disponibles. Bridge n’est pas encore connecté à une banque réelle.'
         : '<strong>Conclusion bancaire :</strong> Aucun compte n’est connecté en temps réel. Ne saisis pas tes identifiants bancaires ici ; il faut passer par un export CSV ou un connecteur Open Banking sécurisé.';
       const mix=t.sales_mix||{}; const mixNote=mix.tshirt_share==null?'mix produit indisponible':`cible 15 € — ${number(mix.tshirt_share)} % tee-shirts / ${number(mix.sweatshirt_share)} % pulls`;
       const roasNote=`cible après marge ${number(t.current_margin_rate*100)} % et Geremy 9 % — seuil brut ${number(t.gross_break_even_roas)}`;
