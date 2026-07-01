@@ -60,6 +60,13 @@
     .todo-state.todo-progress { background:#fff0c9; color:#755500; border-color:#ead18b; }
     .todo-state.todo-waiting { background:#eceae4; color:#4e4b45; }
     .todo-delete { width:28px; height:28px; padding:0; background:#fff; color:var(--bad); border-color:#e8c2bc; }
+    .ai-grid { display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:10px; }
+    .ai-card { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:13px; }
+    .ai-card strong { display:block; margin-top:6px; font-size:20px; letter-spacing:-.4px; }
+    .ai-card p { margin:8px 0 0; color:#4e4b45; }
+    .ai-card ul { margin:8px 0 0; padding-left:18px; color:#4e4b45; }
+    .ai-verdict { margin-top:12px; padding:13px 14px; border-radius:10px; background:#151515; color:#fff; }
+    .ai-verdict strong { color:#d8ff42; }
     .block-conclusion { margin:14px 0 0; padding:12px 14px; border-left:3px solid var(--ink); border-radius:0 8px 8px 0; background:#f7f5f0; color:#4e4b45; }
     .block-conclusion strong { color:var(--ink); }
     .bank-grid { display:grid; grid-template-columns:repeat(4,minmax(160px,1fr)); gap:10px; }
@@ -97,8 +104,8 @@
     .hidden-panel { display:none; }
     .note { margin:-7px 0 13px; color:var(--muted); font-size:12px; }
     .error { margin:20px 32px; padding:14px; border-radius:10px; background:#ffe6e2; color:var(--bad); }
-    @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta{grid-template-columns:repeat(2,1fr)} }
-    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid,.todo-list{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
+    @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.ai-grid{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid,.todo-list,.ai-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
@@ -130,6 +137,12 @@
         </div>
       </div>
       <div id="todoList" class="todo-list"></div>
+    </section>
+    <section class="panel kpi-block">
+      <h2>Coach IA Tesign</h2>
+      <p class="note">Analyse automatique des données disponibles pour suivre le plan : rentabilité → cash → Ferrari F12 Berlinetta à 320 000 €.</p>
+      <div id="aiCoachCards" class="ai-grid"></div>
+      <div id="aiCoachVerdict" class="ai-verdict"></div>
     </section>
     <section class="panel kpi-block">
       <h2>Compte bancaire</h2>
@@ -305,6 +318,58 @@
       ctx.fillStyle='#77736b';ctx.fillText(`${positiveMonths}/${rows.length} mois positifs`,w-150,17);
       if(rows.length){ctx.fillStyle='#77736b';ctx.fillText(rows[0].date,p,h-12);ctx.fillText(rows[rows.length-1].date,w-p-48,h-12)}
     }
+    function renderAiCoach(d, trendMonths) {
+      const t=d.totals, cumulative=d.cumulative?.totals||{};
+      const ferrariTarget=320000;
+      const cumulativeResult=Number(cumulative.estimated_result)||0;
+      const ferrariGap=Math.max(0,ferrariTarget-cumulativeResult);
+      const periodResult=Number(t.estimated_result)||0;
+      const roas=Number(t.blended_roas)||0;
+      const targetRoas=Number(t.target_roas)||0;
+      const cpa=Number(t.cpa)||0;
+      const targetCpa=Number(t.target_cpa)||15;
+      const adSpend=Number(t.ad_spend)||0;
+      const margin=Number(t.contribution_margin)||0;
+      const orders=Number(t.orders)||0;
+      const avgMonthlyResult=trendMonths.length?trendMonths.reduce((sum,row)=>sum+(Number(row.estimated_result)||0),0)/trendMonths.length:0;
+      const profitableMonths=trendMonths.filter(row=>Number(row.estimated_result)>0).length;
+      const ferrariMonths=avgMonthlyResult>0?Math.ceil(ferrariGap/avgMonthlyResult):null;
+      const acquisitionIssue=adSpend>0&&(roas<targetRoas||cpa>targetCpa||margin<adSpend);
+      const salesIssue=orders===0;
+      const cards=[
+        {
+          title:'Diagnostic',
+          value:periodResult>=0?'Période positive':'Période négative',
+          tone:periodResult>=0?'positive':'negative',
+          body:periodResult>=0
+            ? `Résultat période ${euro(periodResult)}. Le sujet devient la régularité et le volume.`
+            : `Résultat période ${euro(periodResult)}. Tesign doit d'abord arrêter les ventes non rentables.`
+        },
+        {
+          title:'Priorité 1',
+          value:acquisitionIssue?'Réparer Meta':'Tester sans forcer',
+          tone:acquisitionIssue?'negative':'positive',
+          body:acquisitionIssue
+            ? `Objectif : CPA ≤ ${euro(targetCpa)} et ROAS ≥ ${number(targetRoas)} avant de remettre du budget fort.`
+            : `Meta est moins dangereux sur cette période. Monter progressivement, pas brutalement.`
+        },
+        {
+          title:'Chemin Ferrari',
+          value:euro(ferrariGap),
+          tone:'negative',
+          body:ferrariMonths
+            ? `Au rythme moyen 24 mois (${euro(avgMonthlyResult)}/mois), il faudrait environ ${number(ferrariMonths)} mois. Il faut changer d'échelle.`
+            : `Tant que le résultat mensuel moyen est négatif (${euro(avgMonthlyResult)}), la F12 s'éloigne.`
+        }
+      ];
+      aiCoachCards.innerHTML=cards.map(card=>`<div class="ai-card"><span class="eyebrow">${esc(card.title)}</span><strong class="${card.tone==='positive'?'positive':'negative'}">${esc(card.value)}</strong><p>${esc(card.body)}</p></div>`).join('');
+      const priorities=salesIssue
+        ? ['Remettre du trafic qualifié sur le site.', 'Vérifier offre, prix, pages produit et preuves sociales.', 'Ne pas juger la rentabilité avant d’avoir des commandes.']
+        : acquisitionIssue
+          ? ['Ne pas scaler Meta tant que le CPA dépasse la cible.', 'Écouler le stock Turquie avec affiliation et micro-influenceurs trackés.', 'Passer Geremy sur une commission au profit généré, pas au CA.', 'Couper vite les créas/campagnes qui consomment sans commandes.']
+          : ['Augmenter le volume par paliers contrôlés.', 'Réinvestir uniquement une partie du bénéfice.', 'Documenter les créas, offres et influenceurs qui vendent vraiment.'];
+      aiCoachVerdict.innerHTML=`<strong>Avis IA :</strong> ${periodResult<0?'le business peut marcher, mais pas avec une acquisition plus chère que la marge.':'le signal est meilleur, mais il faut prouver que la rentabilité tient sur plusieurs semaines.'}<ul>${priorities.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`;
+    }
     function render(d) {
       const t=d.totals, cumulative=d.cumulative.totals, cumulativeComplete=d.cumulative.is_complete;
       period.textContent=`${d.period.since} au ${d.period.until} (${d.period.days} jours)`;
@@ -410,6 +475,7 @@
       chartInsight.innerHTML=trendGap<0
         ? `<strong>Lecture graphique :</strong> sur les 24 derniers mois, les coûts Meta dépassent la marge de ${euro(Math.abs(trendGap))}. Le mois le plus faible est ${weakMonth?`${weakMonth.date} (${euro((Number(weakMonth.contribution_margin)||0)-(Number(weakMonth.ad_spend)||0))})`:'non identifiable'}.`
         : `<strong>Lecture graphique :</strong> sur les 24 derniers mois, la marge couvre Meta avec ${euro(trendGap)} d'avance. Le meilleur mois est ${bestMonth?`${bestMonth.date} (${euro((Number(bestMonth.contribution_margin)||0)-(Number(bestMonth.ad_spend)||0))})`:'non identifiable'}.`;
+      renderAiCoach(d, trendMonths);
       warnings.innerHTML=d.warnings.map(w=>`<li>${esc(w)}</li>`).join('');
       drawChart(trendMonths);
       table('stock',['Produit','Taille / couleur','Origine','Statut','Initial','Restant','Shopify'],d.stock.map(r=>`<tr><td>${esc(r.product)}</td><td>${esc(r.variant)}</td><td>${esc(r.origin)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td><td>${r.initial}</td><td>${r.remaining}</td><td>${r.shopify_quantity??'non lie'}</td></tr>`));
