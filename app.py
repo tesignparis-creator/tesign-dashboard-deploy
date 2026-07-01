@@ -1011,10 +1011,16 @@ class DashboardBuilder:
             )
 
         margin_profiles = []
+        profit_commission_rate = 0.20
         for configured_profile in self.config.get("margin_profiles", []):
             profile = deepcopy(configured_profile)
             margin_rate = float(profile.get("margin_rate", 0.0))
             projected_contribution = round(totals["revenue"] * margin_rate, 2)
+            projected_meta_profit = round(projected_contribution - totals["ad_spend"], 2)
+            geremy_profit_commission = round(
+                max(0.0, projected_meta_profit) * profit_commission_rate,
+                2,
+            )
             profile["projected_contribution"] = projected_contribution
             profile["projected_result"] = round(
                 projected_contribution
@@ -1024,6 +1030,20 @@ class DashboardBuilder:
                 - totals["business_expenses"],
                 2,
             )
+            profile["geremy_profit_deal"] = {
+                "rate": profit_commission_rate,
+                "basis": "commission_on_positive_meta_profit",
+                "projected_meta_profit": projected_meta_profit,
+                "commission": geremy_profit_commission,
+                "projected_result": round(
+                    projected_contribution
+                    - totals["ad_spend"]
+                    - geremy_profit_commission
+                    - totals["fixed_costs_prorated"]
+                    - totals["business_expenses"],
+                    2,
+                ),
+            }
             margin_profiles.append(profile)
 
         for sale in affiliate_config.get("manual_sales", []):

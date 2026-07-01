@@ -38,6 +38,7 @@
     .margin-item strong { display:block; margin:4px 0; font-size:21px; }
     .margin-item .projection { margin-top:10px; padding-top:9px; border-top:1px solid var(--line); }
     .margin-item .projection strong { font-size:18px; }
+    .margin-item .projection.alt { background:#f7fbf4; border:1px solid #cfe6c9; border-radius:8px; margin-top:9px; padding:9px; }
     .margin-item.retired { opacity:.55; background:#f4f1ed; }
     .margin-item.retired > * { text-decoration:line-through; }
     .margin-item.highlight { background:#edf8ef; border-color:#79b887; box-shadow:inset 0 0 0 1px #79b887; }
@@ -150,7 +151,7 @@
       <p id="bankConclusion" class="block-conclusion"></p>
       <div id="bankTransactionsWrap" class="table-wrap bank-transactions" hidden><table id="bankTransactions"></table></div>
     </section>
-    <section class="panel kpi-block"><h2>Santé globale</h2><div id="healthCards" class="kpi-grid"></div><p id="healthConclusion" class="block-conclusion"></p></section>
+    <section class="panel kpi-block"><h2>Santé globale</h2><p id="healthPeriod" class="note" style="margin:-6px 0 12px"></p><div id="healthCards" class="kpi-grid"></div><p id="healthConclusion" class="block-conclusion"></p></section>
     <section class="panel kpi-block"><h2>Vente</h2><div id="salesCards" class="kpi-grid sales"></div><p id="salesConclusion" class="block-conclusion"></p></section>
     <section class="panel kpi-block">
       <h2>Meta Ads</h2>
@@ -195,6 +196,7 @@
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const today = new Date(); const prior = new Date(today); prior.setDate(today.getDate()-90);
     const dateValue = d => d.toISOString().slice(0,10);
+    const dateLabel = value => value ? new Intl.DateTimeFormat('fr-FR').format(new Date(`${value}T00:00:00`)) : '-';
     since.value = dateValue(prior); until.value = dateValue(today);
 
     function table(id, headers, rows) {
@@ -405,6 +407,7 @@
       const longHistoryIncomplete=!cumulativeComplete&&d.period.days>180;
       const periodResultValue=longHistoryIncomplete?'À recalculer':euro(t.estimated_result);
       const periodResultNote=longHistoryIncomplete?'historique Shopify incomplet sur cette période':`charges fixes depuis la première vente (${t.fixed_cost_days} jours)`;
+      healthPeriod.textContent=`Période prise en compte : du ${dateLabel(d.period.since)} au ${dateLabel(d.period.until)} (${number(d.period.days)} jours).`;
       const health=[['CA période',euro(t.revenue),`${t.orders} commandes`],['Résultat période',periodResultValue,periodResultNote,longHistoryIncomplete?null:t.estimated_result],['Marge contributive',euro(t.contribution_margin),'avant publicité, Geremy et charges fixes'],['ROAS réel / cible',`${number(t.blended_roas)} / ${number(t.target_roas)}`,roasNote],['CPA réel / cible',`${euro(t.cpa)} / ${euro(t.target_cpa)}`,mixNote]];
       healthCards.innerHTML=health.map(cardHtml).join('');
       const paidSalesUnprofitable=Number(t.ad_spend)>0&&Number(t.estimated_result)<0;
@@ -432,7 +435,11 @@
         const isAsia=p.label==='T-shirt Asie';
         const cardClass=isFrance?' retired':(isTurkey?' highlight':'');
         const status=isAsia?'<span class="margin-status">Sample commandé</span>':'';
-        return `<div class="margin-item${cardClass}"><span class="eyebrow">${esc(p.label)}</span><strong>${number(Number(p.margin_rate)*100)} %</strong><small>${esc(p.shipping)}</small>${status}<div class="projection"><small>Résultat projeté sur la période</small><strong class="${p.projected_result>=0?'positive':'negative'}">${euro(p.projected_result)}</strong><small>si tout le CA était à cette marge</small></div></div>`;
+        const geremyDeal=p.geremy_profit_deal||{};
+        const geremyDealHtml=isAsia&&geremyDeal.projected_result!=null
+          ? `<div class="projection alt"><small>Nouveau deal Geremy : 20 % du profit Meta</small><strong class="${geremyDeal.projected_result>=0?'positive':'negative'}">${euro(geremyDeal.projected_result)}</strong><small>commission estimée Geremy : ${euro(geremyDeal.commission)} sur la période</small></div>`
+          : '';
+        return `<div class="margin-item${cardClass}"><span class="eyebrow">${esc(p.label)}</span><strong>${number(Number(p.margin_rate)*100)} %</strong><small>${esc(p.shipping)}</small>${status}<div class="projection"><small>Résultat projeté sur la période</small><strong class="${p.projected_result>=0?'positive':'negative'}">${euro(p.projected_result)}</strong><small>si tout le CA était à cette marge</small></div>${geremyDealHtml}</div>`;
       }).join('');
       table('campaigns',['Campagne','Dépenses','Achats attribués','CA attribué','ROAS','CPA'],d.campaign_performance.map(r=>`<tr><td>${esc(r.campaign)}</td><td>${euro(r.spend)}</td><td>${number(r.purchases)}</td><td>${euro(r.purchase_value)}</td><td>${number(r.roas)}</td><td>${euro(r.cpa)}</td></tr>`));
       const affiliate=d.affiliate||{totals:{},influencers:[]};
