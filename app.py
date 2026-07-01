@@ -779,6 +779,36 @@ class DashboardBuilder:
             )
             margin_profiles.append(profile)
 
+        legacy_bank_account = self.config.get("bank_account", {})
+        bank_accounts = deepcopy(self.config.get("bank_accounts", []))
+        if not bank_accounts:
+            bank_accounts = [
+                {
+                    "label": "Compte perso",
+                    "balance": None,
+                    "recorded_at": None,
+                    "source": "non_connecte",
+                },
+                {
+                    "label": "Compte pro Tesign",
+                    "balance": legacy_bank_account.get("balance"),
+                    "recorded_at": legacy_bank_account.get("recorded_at"),
+                    "source": legacy_bank_account.get("source", "manual"),
+                },
+                {
+                    "label": "Compte loisir",
+                    "balance": None,
+                    "recorded_at": None,
+                    "source": "non_connecte",
+                },
+                {
+                    "label": "Compte economie",
+                    "balance": None,
+                    "recorded_at": None,
+                    "source": "non_connecte",
+                },
+            ]
+
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "period": {"since": since.isoformat(), "until": until.isoformat(), "days": period_days},
@@ -793,6 +823,7 @@ class DashboardBuilder:
                     "active_ranges": campaign_ranges,
                 },
                 "bank_account": self.config.get("bank_account", {}),
+                "bank_accounts": bank_accounts,
                 "manual_expenses": manual_expenses,
             },
             "campaign_performance": campaign_performance,

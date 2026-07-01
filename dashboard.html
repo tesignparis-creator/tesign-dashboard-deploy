@@ -46,6 +46,11 @@
     .objective-box li { padding-left:3px; }
     .block-conclusion { margin:14px 0 0; padding:12px 14px; border-left:3px solid var(--ink); border-radius:0 8px 8px 0; background:#f7f5f0; color:#4e4b45; }
     .block-conclusion strong { color:var(--ink); }
+    .bank-grid { display:grid; grid-template-columns:repeat(4,minmax(160px,1fr)); gap:10px; }
+    .bank-card { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:14px; }
+    .bank-card strong { display:block; margin:8px 0 4px; font-size:24px; letter-spacing:-.7px; }
+    .bank-card small { color:var(--muted); }
+    .bank-card.not-connected strong { color:var(--muted); }
     .positive { color:var(--good); } .negative { color:var(--bad); }
     .grid { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; margin-top:12px; }
     .panel { padding:18px; overflow:hidden; }
@@ -67,8 +72,8 @@
     .warnings li { background:#fff2d6; border:1px solid #efd99e; border-radius:8px; margin-top:7px; padding:9px 11px; }
     .note { margin:-7px 0 13px; color:var(--muted); font-size:12px; }
     .error { margin:20px 32px; padding:14px; border-radius:10px; background:#ffe6e2; color:var(--bad); }
-    @media(max-width:1100px) { .cards{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta{grid-template-columns:repeat(2,1fr)} }
-    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .cards,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} }
+    @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} }
   </style>
 </head>
 <body>
@@ -84,6 +89,11 @@
   <main>
     <div class="status"><span id="period"></span><span id="updated"></span></div>
     <section id="cards" class="cards"></section>
+    <section class="panel kpi-block">
+      <h2>Compte bancaire</h2>
+      <div id="bankAccounts" class="bank-grid"></div>
+      <p id="bankConclusion" class="block-conclusion"></p>
+    </section>
     <section class="panel kpi-block"><h2>Santé globale</h2><div id="healthCards" class="kpi-grid"></div><p id="healthConclusion" class="block-conclusion"></p></section>
     <section class="panel kpi-block"><h2>Vente</h2><div id="salesCards" class="kpi-grid sales"></div><p id="salesConclusion" class="block-conclusion"></p></section>
     <section class="panel kpi-block">
@@ -157,6 +167,18 @@
       const cumulativeCard=`<div class="card primary"><span class="eyebrow">Résultat cumulé Tesign</span><strong class="${cumulativeClass}">${esc(cumulativeValue)}</strong><small>Depuis création — tous revenus moins toutes dépenses connues<span class="estimate-note">${esc(cumulativeNote)}</span></small></div>`;
       cardsEl=document.getElementById('cards');cardsEl.innerHTML=cumulativeCard;
       const cardHtml=c=>`<div class="card"><span class="eyebrow">${esc(c[0])}</span><strong class="${c[3]==null?'':(c[3]>=0?'positive':'negative')}">${esc(c[1])}</strong><small>${esc(c[2])}</small></div>`;
+      const accounts=d.financial?.bank_accounts||[];
+      bankAccounts.innerHTML=accounts.map(account=>{
+        const balance=account.balance==null?null:Number(account.balance);
+        const connected=account.source&&account.source!=='non_connecte';
+        const source=account.source==='manual'?'manuel':(account.source==='open_banking'?'Open Banking':(connected?account.source:'non connecté'));
+        const recorded=account.recorded_at?`au ${esc(account.recorded_at)}`:'temps réel non activé';
+        return `<div class="bank-card${connected?'':' not-connected'}"><span class="eyebrow">${esc(account.label)}</span><strong class="${balance==null?'':(balance>=0?'positive':'negative')}">${balance==null?'Non renseigné':euro(balance)}</strong><small>Source : ${esc(source)} · ${recorded}</small></div>`;
+      }).join('');
+      const connectedAccounts=accounts.filter(account=>account.source&&account.source!=='non_connecte').length;
+      bankConclusion.innerHTML=connectedAccounts
+        ? '<strong>Conclusion bancaire :</strong> Les soldes affichés viennent des données disponibles. La synchronisation bancaire temps réel n’est pas encore branchée sur une API sécurisée.'
+        : '<strong>Conclusion bancaire :</strong> Aucun compte n’est connecté en temps réel. Ne saisis pas tes identifiants bancaires ici ; il faut passer par un export CSV ou un connecteur Open Banking sécurisé.';
       const mix=t.sales_mix||{}; const mixNote=mix.tshirt_share==null?'mix produit indisponible':`cible 15 € — ${number(mix.tshirt_share)} % tee-shirts / ${number(mix.sweatshirt_share)} % pulls`;
       const roasNote=`cible après marge ${number(t.current_margin_rate*100)} % et Geremy 9 % — seuil brut ${number(t.gross_break_even_roas)}`;
       const longHistoryIncomplete=!cumulativeComplete&&d.period.days>180;
