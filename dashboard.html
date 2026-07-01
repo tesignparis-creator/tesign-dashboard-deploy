@@ -60,6 +60,10 @@
     canvas { width:100%; height:260px; display:block; }
     .result-chart { height:155px; }
     .chart-subtitle { margin-top:18px; }
+    .trend-grid { display:grid; grid-template-columns:repeat(4,minmax(140px,1fr)); gap:10px; margin-bottom:12px; }
+    .trend-card { background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:12px; }
+    .trend-card strong { display:block; margin-top:5px; font-size:21px; letter-spacing:-.5px; }
+    .trend-card small { color:var(--muted); }
     .stock-summary { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
     .stock-summary div { background:var(--bg); border-radius:9px; padding:12px; }
     .stock-summary strong { display:block; font-size:24px; }
@@ -123,6 +127,11 @@
       <div class="table-wrap affiliate-table"><table id="affiliateInfluencers"></table></div>
       <p id="affiliateConclusion" class="block-conclusion"></p>
     </section>
+    <section class="panel kpi-block">
+      <h2>Tendances business</h2>
+      <div id="trendCards" class="trend-grid"></div>
+      <p id="chartInsight" class="block-conclusion"></p>
+    </section>
     <section class="grid">
       <div class="panel"><h2>CA et dépenses Meta par jour</h2><canvas id="chart" width="900" height="230"></canvas><h2 class="chart-subtitle">Résultat estimé par jour</h2><canvas id="resultChart" class="result-chart" width="900" height="170"></canvas><p class="note">Barre verte : bénéfice du jour. Barre rouge : perte du jour. Résultat = CA − coûts des ventes − Meta − Geremy − charges fixes − autres dépenses.</p></div>
       <div class="panel">
@@ -151,14 +160,28 @@
     }
     function drawChart(rows) {
       const canvas = document.getElementById('chart'), ctx = canvas.getContext('2d');
-      const w=canvas.width,h=canvas.height,p=34; ctx.clearRect(0,0,w,h);
-      const max=Math.max(1,...rows.flatMap(r=>[r.revenue,r.ad_spend]));
+      const w=canvas.width,h=canvas.height,p=44; ctx.clearRect(0,0,w,h);
+      const values=rows.flatMap(r=>[Number(r.revenue)||0,Number(r.ad_spend)||0,Math.max(0,Number(r.estimated_result)||0)]);
+      const max=Math.max(1,...values)*1.15;
+      const x=i=>p+(w-2*p)*(rows.length===1?0:i/(rows.length-1));
+      const y=value=>h-p-(h-2*p)*(Number(value)||0)/max;
+      ctx.font='12px Inter, Segoe UI, Arial';
       ctx.strokeStyle='#dedbd4'; ctx.lineWidth=1;
-      for(let i=0;i<5;i++){const y=p+(h-2*p)*i/4;ctx.beginPath();ctx.moveTo(p,y);ctx.lineTo(w-p,y);ctx.stroke();}
-      const line=(key,color)=>{ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();rows.forEach((r,i)=>{const x=p+(w-2*p)*(rows.length===1?0:i/(rows.length-1));const pointY=h-p-(h-2*p)*(Number(r[key])||0)/max;i?ctx.lineTo(x,pointY):ctx.moveTo(x,pointY)});ctx.stroke()};
-      line('revenue','#151515'); line('ad_spend','#a7c900');
-      const legend=(x,color,label)=>{ctx.fillStyle=color;ctx.fillRect(x,8,12,3);ctx.fillStyle='#151515';ctx.fillText(label,x+18,13)};
-      legend(p,'#151515','CA Shopify');legend(p+110,'#a7c900','Meta');
+      for(let i=0;i<5;i++){const yy=p+(h-2*p)*i/4;ctx.beginPath();ctx.moveTo(p,yy);ctx.lineTo(w-p,yy);ctx.stroke();ctx.fillStyle='#77736b';ctx.fillText(euro(max*(1-i/4)),6,yy+4)}
+      const avg=(key,index,span=7)=>{const start=Math.max(0,index-span+1),slice=rows.slice(start,index+1);return slice.reduce((s,r)=>s+(Number(r[key])||0),0)/slice.length};
+      const line=(getValue,color,width=3,dash=[])=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();rows.forEach((r,i)=>{const yy=y(getValue(r,i));i?ctx.lineTo(x(i),yy):ctx.moveTo(x(i),yy)});ctx.stroke();ctx.setLineDash([])};
+      line(r=>r.revenue,'#151515',2.5);
+      line(r=>r.ad_spend,'#a7c900',2.5);
+      line((r,i)=>avg('revenue',i),'#176b4d',3,[7,5]);
+      const profitable=rows.filter(r=>Number(r.estimated_result)>0).length;
+      rows.forEach((r,i)=>{const result=Number(r.estimated_result)||0;if(!result)return;ctx.fillStyle=result>0?'rgba(23,107,77,.18)':'rgba(180,66,53,.14)';const xx=x(i)-2;ctx.fillRect(xx,p,4,h-2*p)});
+      const active=rows.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
+      const best=[...active].sort((a,b)=>(Number(b.estimated_result)||0)-(Number(a.estimated_result)||0))[0];
+      const worst=[...active].sort((a,b)=>(Number(a.estimated_result)||0)-(Number(b.estimated_result)||0))[0];
+      [best,worst].filter(Boolean).forEach((r,idx)=>{const i=rows.findIndex(day=>day.date===r.date),yy=y(Math.max(Number(r.revenue)||0,Number(r.ad_spend)||0));ctx.fillStyle=idx?'#b44235':'#176b4d';ctx.beginPath();ctx.arc(x(i),yy,5,0,Math.PI*2);ctx.fill();ctx.fillText(`${idx?'Faible':'Fort'} ${r.date.slice(5)} ${euro(r.estimated_result)}`,Math.min(w-190,x(i)+8),Math.max(18,yy-8))});
+      const legend=(x0,color,label,dash=false)=>{ctx.strokeStyle=color;ctx.lineWidth=3;ctx.setLineDash(dash?[7,5]:[]);ctx.beginPath();ctx.moveTo(x0,13);ctx.lineTo(x0+18,13);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#151515';ctx.fillText(label,x0+24,17)};
+      legend(p,'#151515','CA');legend(p+75,'#a7c900','Meta');legend(p+160,'#176b4d','CA moyen 7j',true);
+      ctx.fillStyle='#77736b';ctx.fillText(`${profitable}/${rows.length} jours positifs`,w-145,17);
     }
     function drawResultChart(rows) {
       const canvas=document.getElementById('resultChart'),ctx=canvas.getContext('2d');
@@ -255,6 +278,24 @@
         : '<strong>Conclusion affiliation :</strong> Le suivi est prêt, mais aucun influenceur n est encore renseigné. La prochaine étape est de créer des codes promo uniques dans Shopify et d ajouter les profils testés.';
       available.textContent=d.stock_totals.available; incoming.textContent=d.stock_totals.incoming;
       const monthlyFixed=Object.values(d.fixed_costs_monthly).reduce((sum,value)=>sum+Number(value),0); dailyFixed.textContent=euro(monthlyFixed/30.4375);
+      const activeDays=d.daily.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
+      const positiveDays=d.daily.filter(r=>Number(r.estimated_result)>0);
+      const bestDay=[...activeDays].sort((a,b)=>(Number(b.estimated_result)||0)-(Number(a.estimated_result)||0))[0];
+      const weakDay=[...activeDays].sort((a,b)=>(Number(a.estimated_result)||0)-(Number(b.estimated_result)||0))[0];
+      const last7=d.daily.slice(-7),prev7=d.daily.slice(-14,-7);
+      const sum=(rows,key)=>rows.reduce((total,row)=>total+(Number(row[key])||0),0);
+      const last7Revenue=sum(last7,'revenue'),prev7Revenue=sum(prev7,'revenue');
+      const trendDelta=prev7Revenue?((last7Revenue-prev7Revenue)/prev7Revenue*100):null;
+      trendCards.innerHTML=[
+        ['Tendance CA 7j',trendDelta==null?'-':`${trendDelta>=0?'+':''}${number(trendDelta)} %`,`${euro(last7Revenue)} sur 7 jours`,trendDelta],
+        ['Jours positifs',`${number(positiveDays.length)} / ${number(d.daily.length)}`,'jours avec bénéfice estimé',positiveDays.length-d.daily.length/2],
+        ['Meilleur jour',bestDay?euro(bestDay.estimated_result):'-',bestDay?`${bestDay.date} · ${euro(bestDay.revenue)} CA`:'aucune activité',bestDay?bestDay.estimated_result:null],
+        ['Point faible',weakDay?euro(weakDay.estimated_result):'-',weakDay?`${weakDay.date} · ${euro(weakDay.ad_spend)} Meta`:'aucune activité',weakDay?weakDay.estimated_result:null]
+      ].map(([label,value,note,signal])=>`<div class="trend-card"><span class="eyebrow">${esc(label)}</span><strong class="${signal==null?'':(signal>=0?'positive':'negative')}">${esc(value)}</strong><small>${esc(note)}</small></div>`).join('');
+      const metaWasteDays=d.daily.filter(r=>Number(r.ad_spend)>0&&Number(r.orders)===0);
+      chartInsight.innerHTML=Number(t.estimated_result)<0
+        ? `<strong>Lecture graphique :</strong> la période reste négative (${euro(t.estimated_result)}). Le point faible principal est ${number(metaWasteDays.length)} jour(s) avec dépense Meta sans commande. Le meilleur signal est ${bestDay?`${bestDay.date} (${euro(bestDay.estimated_result)})`:'encore insuffisant'}.`
+        : `<strong>Lecture graphique :</strong> la période est positive (${euro(t.estimated_result)}). Surveille surtout les jours où Meta monte plus vite que le CA.`;
       warnings.innerHTML=d.warnings.map(w=>`<li>${esc(w)}</li>`).join('');
       drawChart(d.daily);
       drawResultChart(d.daily);
