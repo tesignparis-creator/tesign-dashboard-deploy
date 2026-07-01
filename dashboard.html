@@ -47,17 +47,19 @@
     .objective-box li { padding-left:3px; }
     .plan-box { margin-top:12px; padding:16px; border:1px solid #b9b5ab; border-radius:12px; background:#fff; }
     .plan-box strong { display:block; margin-top:6px; font-size:24px; letter-spacing:-.6px; }
-    .todo-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
-    .todo-actions { display:flex; gap:8px; align-items:center; }
-    .todo-actions input { min-width:320px; }
-    .todo-list { display:grid; gap:8px; }
-    .todo-item { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); }
-    .todo-item textarea { min-height:42px; resize:vertical; border:1px solid var(--line); border-radius:8px; background:#fff; padding:10px 12px; color:var(--ink); font:inherit; }
-    .todo-state { min-width:96px; height:34px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--ink); font-size:12px; font-weight:800; text-transform:uppercase; cursor:pointer; }
+    .todo-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; }
+    .todo-head h2 { margin-bottom:3px; }
+    .todo-actions { display:flex; gap:6px; align-items:center; }
+    .todo-actions input { min-width:280px; height:32px; }
+    .todo-actions button { height:32px; }
+    .todo-list { display:grid; grid-template-columns:repeat(2,minmax(260px,1fr)); gap:6px; }
+    .todo-item { display:grid; grid-template-columns:1fr auto auto; gap:6px; align-items:center; padding:7px; border:1px solid var(--line); border-radius:9px; background:var(--bg); }
+    .todo-item textarea { height:32px; min-height:32px; resize:none; overflow:hidden; border:0; border-radius:7px; background:#fff; padding:7px 9px; color:var(--ink); font:13px/1.25 Inter,Segoe UI,Arial,sans-serif; }
+    .todo-state { min-width:78px; height:28px; padding:0 8px; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--ink); font-size:10px; font-weight:800; text-transform:uppercase; cursor:pointer; }
     .todo-state.todo-done { background:#daf2e5; color:var(--good); border-color:#9ed1b5; }
     .todo-state.todo-progress { background:#fff0c9; color:#755500; border-color:#ead18b; }
     .todo-state.todo-waiting { background:#eceae4; color:#4e4b45; }
-    .todo-delete { width:34px; height:34px; padding:0; background:#fff; color:var(--bad); border-color:#e8c2bc; }
+    .todo-delete { width:28px; height:28px; padding:0; background:#fff; color:var(--bad); border-color:#e8c2bc; }
     .block-conclusion { margin:14px 0 0; padding:12px 14px; border-left:3px solid var(--ink); border-radius:0 8px 8px 0; background:#f7f5f0; color:#4e4b45; }
     .block-conclusion strong { color:var(--ink); }
     .bank-grid { display:grid; grid-template-columns:repeat(4,minmax(160px,1fr)); gap:10px; }
@@ -96,7 +98,7 @@
     .note { margin:-7px 0 13px; color:var(--muted); font-size:12px; }
     .error { margin:20px 32px; padding:14px; border-radius:10px; background:#ffe6e2; color:var(--bad); }
     @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta{grid-template-columns:repeat(2,1fr)} }
-    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
+    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid,.todo-list{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
@@ -120,7 +122,7 @@
       <div class="todo-head">
         <div>
           <h2>To-do list</h2>
-          <p class="note" style="margin:0">Modifiable directement ici. Les changements sont enregistrés dans ce navigateur.</p>
+          <p class="note" style="margin:0">Sauvegardé dans ce navigateur.</p>
         </div>
         <div class="todo-actions">
           <input id="todoInput" type="text" placeholder="Nouvel objectif">
