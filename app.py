@@ -307,6 +307,97 @@ class BridgeClient:
         }
 
 
+class PowensClient:
+    def __init__(self) -> None:
+        raw_domain = os.environ.get("POWENS_DOMAIN", "").strip()
+        self.domain = raw_domain.removeprefix("https://").removeprefix("http://")
+        self.domain = self.domain.removesuffix("/").removesuffix(".biapi.pro")
+        self.client_id = os.environ.get("POWENS_CLIENT_ID", "").strip()
+        self.client_secret = os.environ.get("POWENS_CLIENT_SECRET", "").strip()
+        self.user_id = os.environ.get("POWENS_USER_ID", "").strip()
+        self.access_token = (
+            os.environ.get("POWENS_ACCESS_TOKEN", "").strip()
+            or os.environ.get("POWENS_USER_TOKEN", "").strip()
+        )
+        self.show_transactions = os.environ.get("POWENS_SHOW_TRANSACTIONS", "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        self._token = ""
+
+    @property
+    def enabled(self) -> bool:
+        return bool(
+            self.domain
+            and (self.access_token or (self.client_id and self.client_secret and self.user_id))
+        )
+
+    @property
+    def environment(self) -> str:
+        return "sandbox" if self.domain.endswith("-sandbox") else "production"
+
+    @property
+    def base_url(self) -> str:
+        return f"https://{self.domain}.biapi.pro/2.0"
+
+    def token(self) -> str:
+        if self._token:
+            return self._token
+        if self.access_token:
+            self._token = self.access_token
+            return self._token
+        if not self.user_id:
+            raise RuntimeError("POWENS_USER_ID or POWENS_ACCESS_TOKEN must be defined.")
+        result = request_json(
+            f"{self.base_url}/auth/renew",
+            method="POST",
+            payload={
+                "grant_type": "client_credentials",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "id_user": self.user_id,
+            },
+        )
+        self._token = result.get("access_token") or result.get("auth_token") or ""
+        if not self._token:
+            raise RuntimeError("Powens did not return an access token.")
+        return self._token
+
+    def headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.token()}", "accept": "application/json"}
+
+    def list_resource(self, path: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        separator = "&" if "?" in path else "?"
+        result = request_json(
+            f"{self.base_url}/{path}{separator}limit={limit}",
+            headers=self.headers(),
+        )
+        if isinstance(result, list):
+            return list(result)
+        for key in ("accounts", "transactions", "resources", "items"):
+            if isinstance(result.get(key), list):
+                return list(result[key])
+        return []
+
+    def snapshot(self) -> dict[str, Any]:
+        if not self.enabled:
+            return {"enabled": False, "accounts": [], "transactions": []}
+        transactions = (
+            self.list_resource("users/me/transactions", limit=20)
+            if self.show_transactions
+            else []
+        )
+        return {
+            "enabled": True,
+            "environment": self.environment,
+            "domain": self.domain,
+            "user_id": self.user_id or "me",
+            "accounts": self.list_resource("users/me/accounts?all", limit=100),
+            "transactions": transactions,
+        }
+
+
 class MetaClient:
     def __init__(self, config: dict[str, Any]) -> None:
         self.token = os.environ.get("META_ACCESS_TOKEN", "").strip()
@@ -560,6 +651,7 @@ class DashboardBuilder:
         self.shopify = ShopifyClient(config)
         self.meta = MetaClient(config)
         self.bridge = BridgeClient()
+        self.powens = PowensClient()
 
     def build(
         self, since: date, until: date, *, include_analytics: bool = True
@@ -1177,6 +1269,15 @@ class DashboardBuilder:
         legacy_bank_account = self.config.get("bank_account", {})
         bank_accounts = deepcopy(self.config.get("bank_accounts", []))
         bank_transactions: list[dict[str, Any]] = []
+        powens_status: dict[str, Any] = {
+            "enabled": self.powens.enabled,
+            "client_configured": bool(
+                self.powens.domain and self.powens.client_id and self.powens.client_secret
+            ),
+            "environment": self.powens.environment,
+            "domain": self.powens.domain,
+            "connected": False,
+        }
         bridge_status: dict[str, Any] = {
             "enabled": self.bridge.enabled,
             "environment": self.bridge.environment,
@@ -1191,7 +1292,98 @@ class DashboardBuilder:
             os.environ.get("BRIDGE_SHOW_TRANSACTIONS", "").lower()
             in {"1", "true", "yes"}
         ) or not public_deployment
-        if self.bridge.enabled:
+        if self.powens.enabled:
+            try:
+                powens_snapshot = self.powens.snapshot()
+                powens_accounts = powens_snapshot["accounts"]
+                if powens_accounts:
+                    bank_accounts = [
+                        {
+                            "label": (
+                                account.get("name")
+                                or account.get("display_name")
+                                or account.get("original_name")
+                                or f"Compte {account.get('id')}"
+                            ),
+                            "balance": next(
+                                (
+                                    value
+                                    for value in (
+                                        account.get("balance"),
+                                        account.get("coming_balance"),
+                                        account.get("booked_balance"),
+                                    )
+                                    if value is not None
+                                ),
+                                None,
+                            ),
+                            "currency_code": account.get("currency")
+                            or account.get("currency_code")
+                            or "EUR",
+                            "recorded_at": iso_date(
+                                account.get("last_update")
+                                or account.get("last_refresh")
+                                or account.get("updated_at")
+                            ),
+                            "source": (
+                                "powens_sandbox"
+                                if self.powens.environment == "sandbox"
+                                else "powens"
+                            ),
+                            "account_id": account.get("id"),
+                            "type": account.get("type") or account.get("usage"),
+                            "status": account.get("state") or account.get("disabled"),
+                        }
+                        for account in powens_accounts
+                    ]
+                if self.powens.show_transactions:
+                    bank_transactions = [
+                        {
+                            "id": transaction.get("id"),
+                            "date": iso_date(
+                                transaction.get("date")
+                                or transaction.get("rdate")
+                                or transaction.get("datetime")
+                            ),
+                            "description": transaction.get("wording")
+                            or transaction.get("simplified_wording")
+                            or transaction.get("original_wording")
+                            or transaction.get("label")
+                            or "Transaction",
+                            "amount": next(
+                                (
+                                    value
+                                    for value in (
+                                        transaction.get("value"),
+                                        transaction.get("amount"),
+                                    )
+                                    if value is not None
+                                ),
+                                None,
+                            ),
+                            "currency_code": transaction.get("currency")
+                            or transaction.get("currency_code")
+                            or "EUR",
+                            "account_id": transaction.get("id_account")
+                            or transaction.get("account_id"),
+                            "operation_type": transaction.get("type")
+                            or transaction.get("category"),
+                        }
+                        for transaction in powens_snapshot["transactions"]
+                        if not transaction.get("deleted")
+                    ]
+                powens_status.update(
+                    {
+                        "connected": bool(powens_accounts),
+                        "account_count": len(powens_accounts),
+                        "transaction_count": len(powens_snapshot["transactions"]),
+                        "transactions_visible": self.powens.show_transactions,
+                    }
+                )
+            except Exception as exc:
+                powens_status["error"] = str(exc)[:240]
+                warnings.append(f"Powens banking sync failed: {powens_status['error']}")
+        if not powens_status.get("connected") and self.bridge.enabled:
             try:
                 bridge_snapshot = self.bridge.snapshot()
                 bridge_accounts = bridge_snapshot["accounts"]
@@ -1284,6 +1476,7 @@ class DashboardBuilder:
                 "bank_account": self.config.get("bank_account", {}),
                 "bank_accounts": bank_accounts,
                 "bank_transactions": bank_transactions,
+                "powens": powens_status,
                 "bridge": bridge_status,
                 "manual_expenses": manual_expenses,
             },

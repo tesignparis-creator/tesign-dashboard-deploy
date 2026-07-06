@@ -87,6 +87,16 @@ Secrets are stored in Windows user environment variables and are not present in 
 The historical Geremy payment is recorded as 387 EUR. The dashboard compares it with the contractual
 9% calculation instead of treating the transfer as proof of the commission amount.
 
-Bridge aggregation is optional. When `BRIDGE_CLIENT_ID` and `BRIDGE_CLIENT_SECRET` are present, the
-dashboard uses Bridge accounts as the banking source. Detailed transactions are hidden on public
-deployments unless `BRIDGE_SHOW_TRANSACTIONS=true` is explicitly set.
+Powens aggregation is optional. When it is connected, it has priority over Bridge and manual balances.
+Set these Render environment variables to enable it:
+
+- `POWENS_DOMAIN`: domain without protocol, for example `tesign-sandbox.biapi.pro`;
+- `POWENS_CLIENT_ID`: Powens client application id;
+- `POWENS_CLIENT_SECRET`: Powens client application secret;
+- `POWENS_USER_ID`: Powens user id, used with client credentials to renew a user token;
+- or `POWENS_ACCESS_TOKEN` / `POWENS_USER_TOKEN`: user-scoped token if you prefer storing the token directly;
+- `POWENS_SHOW_TRANSACTIONS=true`: optional, displays recent transactions on the dashboard.
+
+Bridge aggregation is optional fallback. When `BRIDGE_CLIENT_ID` and `BRIDGE_CLIENT_SECRET` are present,
+the dashboard uses Bridge accounts only if Powens has no connected account. Detailed transactions are
+hidden on public deployments unless `BRIDGE_SHOW_TRANSACTIONS=true` is explicitly set.
