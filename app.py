@@ -55,6 +55,14 @@ def iso_date(value: Any) -> str:
     return str(value or "")[:10]
 
 
+def currency_code(value: Any, fallback: str = "EUR") -> str:
+    if isinstance(value, dict):
+        return str(value.get("id") or value.get("code") or fallback)
+    if isinstance(value, str) and value:
+        return value
+    return fallback
+
+
 def request_json(
     url: str,
     *,
@@ -1317,9 +1325,9 @@ class DashboardBuilder:
                                 ),
                                 None,
                             ),
-                            "currency_code": account.get("currency")
-                            or account.get("currency_code")
-                            or "EUR",
+                            "currency_code": currency_code(
+                                account.get("currency") or account.get("currency_code")
+                            ),
                             "recorded_at": iso_date(
                                 account.get("last_update")
                                 or account.get("last_refresh")
@@ -1361,9 +1369,9 @@ class DashboardBuilder:
                                 ),
                                 None,
                             ),
-                            "currency_code": transaction.get("currency")
-                            or transaction.get("currency_code")
-                            or "EUR",
+                            "currency_code": currency_code(
+                                transaction.get("currency") or transaction.get("currency_code")
+                            ),
                             "account_id": transaction.get("id_account")
                             or transaction.get("account_id"),
                             "operation_type": transaction.get("type")
