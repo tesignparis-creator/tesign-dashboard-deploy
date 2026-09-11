@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import json
 import os
 import threading
@@ -1516,6 +1517,15 @@ class DashboardBuilder:
         }
 
 
+def meta_history_start(today: date | None = None) -> date:
+    today = today or date.today()
+    year, month_index = divmod(today.year * 12 + today.month - 1 - 37, 12)
+    month = month_index + 1
+    day = min(today.day, calendar.monthrange(year, month)[1])
+    # Keep one day inside Meta's rolling window to allow for timezone boundaries.
+    return date(year, month, day) + timedelta(days=1)
+
+
 class Cache:
     def __init__(self, builder: DashboardBuilder, refresh_seconds: int) -> None:
         self.builder = builder
@@ -1544,15 +1554,30 @@ class Cache:
 
     def get_dashboard(self, since: date, until: date, force: bool = False) -> dict[str, Any]:
         period_data = self.get(since, until, force=force)
-        cumulative_since = date.fromisoformat(self.builder.config["business_started_at"])
+        today = date.today()
+        requested_since = date.fromisoformat(self.builder.config["business_started_at"])
+        meta_available_since = meta_history_start(today)
+        cumulative_since = max(requested_since, meta_available_since)
+        meta_history_truncated = cumulative_since > requested_since
+        shopify_history_complete = bool(
+            self.builder.config.get("historical_shopify_orders_complete")
+        )
+        missing_data = []
+        if not shopify_history_complete:
+            missing_data.append("Historique des commandes Shopify au-dela de 60 jours")
+        if meta_history_truncated:
+            missing_data.append(
+                f"Historique Meta avant le {meta_available_since.isoformat()} "
+                "indisponible (limite de 37 mois)"
+            )
         cumulative_data = self.get(
             cumulative_since,
-            date.today(),
+            today,
             force=force,
             include_analytics=False,
         )
         trend_since = max(cumulative_since, until - timedelta(days=730))
-        trend_until = min(until, date.today())
+        trend_until = min(until, today)
         trend_daily = [
             row
             for row in cumulative_data["daily"]
@@ -1561,17 +1586,16 @@ class Cache:
         response = deepcopy(period_data)
         response["cumulative"] = {
             "period": cumulative_data["period"],
+            "requested_since": requested_since.isoformat(),
+            "effective_since": cumulative_since.isoformat(),
+            "meta_history_available_since": meta_available_since.isoformat(),
+            "meta_history_truncated": meta_history_truncated,
+            "shopify_history_complete": shopify_history_complete,
             "totals": cumulative_data["totals"],
             "is_estimate": True,
-            "is_complete": bool(
-                self.builder.config.get("historical_shopify_orders_complete")
-            ),
+            "is_complete": shopify_history_complete and not meta_history_truncated,
             "basis": "all known revenues minus all known expenses",
-            "missing_data": (
-                None
-                if self.builder.config.get("historical_shopify_orders_complete")
-                else "Historique des commandes Shopify au-dela de 60 jours"
-            ),
+            "missing_data": "; ".join(missing_data) or None,
         }
         response["trend_history"] = {
             "period": {
@@ -1623,6 +1647,12 @@ def parse_period(query: dict[str, list[str]]) -> tuple[date, date]:
     until = date.fromisoformat(query.get("until", [today.isoformat()])[0])
     if until < since:
         raise ValueError("until must be on or after since")
+    meta_available_since = meta_history_start(today)
+    if since < meta_available_since:
+        raise ValueError(
+            "Historique Meta limité à 37 mois : choisissez une date de début "
+            f"à partir du {meta_available_since.isoformat()}."
+        )
     if (until - since).days > 3650:
         raise ValueError("period cannot exceed 10 years")
     return since, until

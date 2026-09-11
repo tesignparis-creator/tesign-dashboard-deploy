@@ -122,6 +122,7 @@
   <main>
     <div class="status"><span id="period"></span><span id="updated"></span></div>
     <section id="cards" class="cards"></section>
+    <p id="historyNotice" class="note" hidden></p>
     <section class="plan-box">
       <span class="eyebrow">Plan</span>
       <strong>Tesign : être rentable → gagner de l'argent → acheter Ferrari</strong>
@@ -145,7 +146,7 @@
       <div id="aiCoachCards" class="ai-grid"></div>
       <div id="aiCoachVerdict" class="ai-verdict"></div>
     </section>
-    <section class="panel kpi-block">
+    <section class="panel kpi-block hidden-panel">
       <h2>Compte bancaire</h2>
       <div id="bankAccounts" class="bank-grid"></div>
       <p id="bankConclusion" class="block-conclusion"></p>
@@ -322,6 +323,7 @@
     }
     function renderAiCoach(d, trendMonths) {
       const t=d.totals, cumulative=d.cumulative?.totals||{};
+      const cumulativeComplete=Boolean(d.cumulative?.is_complete);
       const ferrariTarget=320000;
       const cumulativeResult=Number(cumulative.estimated_result)||0;
       const ferrariGap=Math.max(0,ferrariTarget-cumulativeResult);
@@ -357,9 +359,11 @@
         },
         {
           title:'Chemin Ferrari',
-          value:euro(ferrariGap),
+          value:cumulativeComplete?euro(ferrariGap):'Historique incomplet',
           tone:'negative',
-          body:ferrariMonths
+          body:!cumulativeComplete
+            ? 'Projection suspendue : le résultat cumulé depuis la création ne peut pas être établi avec un historique incomplet.'
+            : ferrariMonths
             ? `Au rythme moyen 24 mois (${euro(avgMonthlyResult)}/mois), il faudrait environ ${number(ferrariMonths)} mois. Il faut changer d'échelle.`
             : `Tant que le résultat mensuel moyen est négatif (${euro(avgMonthlyResult)}), la F12 s'éloigne.`
         }
@@ -378,9 +382,13 @@
       updated.textContent=`Mis a jour ${new Date(d.generated_at).toLocaleString('fr-FR')}`;
       const cumulativeClass=cumulativeComplete?(cumulative.estimated_result>=0?'positive':'negative'):'';
       const cumulativeValue=cumulativeComplete?euro(cumulative.estimated_result):'À recalculer';
-      const cumulativeNote=cumulativeComplete?'Résultat estimé selon les données disponibles':'Historique Shopify incomplet — le chiffre sur 3 ans serait trompeur';
-      const cumulativeCard=`<div class="card primary"><span class="eyebrow">Résultat cumulé Tesign</span><strong class="${cumulativeClass}">${esc(cumulativeValue)}</strong><small>Depuis création — tous revenus moins toutes dépenses connues<span class="estimate-note">${esc(cumulativeNote)}</span></small></div>`;
+      const cumulativeNote=cumulativeComplete?'Résultat estimé selon les données disponibles':(d.cumulative.missing_data||'Historique incomplet — le résultat depuis la création reste à recalculer');
+      const cumulativeBasis=d.cumulative.meta_history_truncated?`Données accessibles du ${dateLabel(d.cumulative.period.since)} au ${dateLabel(d.cumulative.period.until)}`:'Depuis création — tous revenus moins toutes dépenses connues';
+      const cumulativeCard=`<div class="card primary"><span class="eyebrow">Résultat cumulé Tesign</span><strong class="${cumulativeClass}">${esc(cumulativeValue)}</strong><small>${esc(cumulativeBasis)}<span class="estimate-note">${esc(cumulativeNote)}</span></small></div>`;
       cardsEl=document.getElementById('cards');cardsEl.innerHTML=cumulativeCard;
+      const historyNotice=document.getElementById('historyNotice');
+      historyNotice.hidden=!d.cumulative.meta_history_truncated;
+      historyNotice.textContent=d.cumulative.meta_history_truncated?`Historique limité : Meta ne fournit plus les statistiques avant le ${dateLabel(d.cumulative.meta_history_available_since)}. Le cumul depuis la création est incomplet ; les données de la période sélectionnée restent affichées.`:'';
       const cardHtml=c=>`<div class="card"><span class="eyebrow">${esc(c[0])}</span><strong class="${c[3]==null?'':(c[3]>=0?'positive':'negative')}">${esc(c[1])}</strong><small>${esc(c[2])}</small></div>`;
       const accounts=d.financial?.bank_accounts||[];
       const powens=d.financial?.powens||{};
@@ -411,7 +419,7 @@
         : '<strong>Conclusion bancaire :</strong> Aucun compte n’est connecté en temps réel. Ne saisis pas tes identifiants bancaires ici ; il faut passer par un export CSV ou un connecteur Open Banking sécurisé.';
       const mix=t.sales_mix||{}; const mixNote=mix.tshirt_share==null?'mix produit indisponible':`cible 15 € — ${number(mix.tshirt_share)} % tee-shirts / ${number(mix.sweatshirt_share)} % pulls`;
       const roasNote=`cible après marge ${number(t.current_margin_rate*100)} % et Geremy 9 % — seuil brut ${number(t.gross_break_even_roas)}`;
-      const longHistoryIncomplete=!cumulativeComplete&&d.period.days>180;
+      const longHistoryIncomplete=!(d.cumulative.shopify_history_complete??cumulativeComplete)&&d.period.days>180;
       const periodResultValue=longHistoryIncomplete?'À recalculer':euro(t.estimated_result);
       const periodResultNote=longHistoryIncomplete?'historique Shopify incomplet sur cette période':`charges fixes depuis la première vente (${t.fixed_cost_days} jours)`;
       healthPeriod.textContent=`Période prise en compte : du ${dateLabel(d.period.since)} au ${dateLabel(d.period.until)} (${number(d.period.days)} jours).`;
