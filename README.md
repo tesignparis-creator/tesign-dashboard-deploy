@@ -33,6 +33,14 @@ Ne jamais committer des configurations ou relevés réels. Les fichiers *.local.
 Les lots sont estimés à partir de l'inventaire physique daté ; le filtre de dates ne change pas le stock actuel calculé.
 Les différences avec Shopify et les lots entrants non rapprochés restent explicitement signalés.
 
+## Graphiques et apports
+
+`chart_history` agrège tout l'historique disponible en mois et années, indépendamment du filtre journalier. Une valeur inconnue reste `null`, même dans un total. Le résultat reste une estimation partielle selon la couverture des sources et des coûts.
+
+Les apports personnels sont distincts du CA, des dépenses et du solde bancaire. La configuration privée `business_capital_flows` accepte des flux documentés : `scope: business`, `type: contribution|withdrawal`, `date`, `amount` positif, `currency: EUR`, `source` et `id` facultatif pour dédoublonner. `TESIGN_CAPITAL_FLOWS_JSON` accepte cette liste ou `{flows, coverage}`. Ne pas placer de libellé bancaire sensible dans `source`.
+
+Sans rapprochement intégral attesté par `business_capital_coverage` (`since`, `until`, `is_complete: true`), les flux ne sont qu'un minimum documenté : les totaux complets restent inconnus. Aucun versement Shopify, dépense ou perte n'est transformé automatiquement en apport. Aucun formulaire public ne modifie ces données.
+
 ## Exécution
 
 Python 3.12+ ; bibliothèque standard (tzdata nécessaire sur Windows pour les fuseaux IANA).
@@ -43,5 +51,6 @@ Render démarre python app.py ; actualisation des sources toutes les dix minutes
 
 python -m unittest discover -s tests -v
 node tests/test_frontend.cjs
+node tests/test_charts.cjs
 
 Tests déterministes sans secrets ni appels réseau. Le déploiement doit aussi être vérifié sur les vraies sources.

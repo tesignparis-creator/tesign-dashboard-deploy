@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import json
+import math
 import os
 import threading
 import time
@@ -1799,6 +1800,168 @@ def meta_history_start(today: date | None = None) -> date:
     return date(year, month, day) + timedelta(days=1)
 
 
+CHART_METRICS = (
+    "revenue", "orders", "units", "variable_costs", "contribution_margin",
+    "ad_spend", "fixed_costs", "business_expenses", "geremy_commission",
+    "estimated_result",
+)
+
+
+def aggregate_chart_rows(rows: list[dict[str, Any]], grain: str) -> list[dict[str, Any]]:
+    """Aggregate cached source days without turning an unavailable day into zero."""
+    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        key = row["date"][:4] if grain == "annual" else row["date"][:7]
+        groups[key].append(row)
+    result = []
+    for key, days in sorted(groups.items()):
+        bucket: dict[str, Any] = {
+            "period": key,
+            "date": key + ("-01-01" if grain == "annual" else "-01"),
+            "days": len(days),
+            "has_missing_values": False,
+        }
+        for metric in CHART_METRICS:
+            known = [row[metric] for row in days if row.get(metric) is not None]
+            observed = round(sum(known), 2) if known else None
+            complete = len(known) == len(days)
+            bucket[metric] = observed if complete else None
+            bucket[f"{metric}_observed"] = observed
+            bucket["has_missing_values"] |= not complete
+        result.append(bucket)
+    return result
+
+
+def build_chart_history(
+    cumulative_data: dict[str, Any], cumulative_metadata: dict[str, Any]
+) -> dict[str, Any]:
+    rows = cumulative_data["daily"]
+    totals: dict[str, Any] = {}
+    for metric in CHART_METRICS:
+        known = [row[metric] for row in rows if row.get(metric) is not None]
+        observed = round(sum(known), 2) if known else None
+        totals[metric] = observed if len(known) == len(rows) else None
+        totals[f"{metric}_observed"] = observed
+    return {
+        "period": deepcopy(cumulative_data["period"]),
+        "monthly": aggregate_chart_rows(rows, "monthly"),
+        "annual": aggregate_chart_rows(rows, "annual"),
+        "totals": totals,
+        "generated_at": cumulative_data.get("generated_at"),
+        "source_status": deepcopy(cumulative_metadata["source_status"]),
+        "shopify_history_complete": cumulative_metadata["shopify_history_complete"],
+        "cost_completeness": cumulative_metadata["cost_completeness"],
+        "is_complete": cumulative_metadata["is_complete"],
+        "result_is_complete": cumulative_metadata["is_complete"],
+        "is_estimate": True,
+        "estimated_result_excludes_unconfirmed_commission": cumulative_data["totals"].get(
+            "estimated_result_excludes_unconfirmed_commission", False
+        ),
+        "missing_data": cumulative_metadata["missing_data"],
+        "basis": "Historique Shopify et couts documentes ou estimes; un montant inconnu reste null.",
+        "result_basis": "CA moins couts variables, publicite, charges fixes, frais manuels et commission confirmee uniquement.",
+        "business_expenses_basis": "Frais manuels distincts des couts variables, publicite, charges fixes et commission.",
+        "revenue_basis": "Valeur actuelle des commandes Shopify rattachee a leur date de creation; ne represente pas les encaissements bancaires.",
+    }
+
+
+def build_capital_history(config: dict[str, Any], today: date) -> dict[str, Any]:
+    """Documented owner funding only, never inferred from revenue, losses or stock."""
+    since = date.fromisoformat(config["business_started_at"])
+    raw_flows = config.get("business_capital_flows", [])
+    coverage = config.get("business_capital_coverage") or {}
+    flows: list[dict[str, Any]] = []
+    rejected = 0
+    if not isinstance(raw_flows, list):
+        raw_flows = []
+        rejected += 1
+    seen_ids: set[str] = set()
+    for raw in raw_flows:
+        if not isinstance(raw, dict):
+            rejected += 1
+            continue
+        try:
+            flow_date = date.fromisoformat(raw.get("date", ""))
+            amount = float(raw.get("amount"))
+            source = str(raw.get("source") or "").strip()
+            if (
+                raw.get("scope") != "business"
+                or raw.get("type") not in {"contribution", "withdrawal"}
+                or raw.get("currency", "EUR") != "EUR"
+                or isinstance(raw.get("amount"), bool)
+                or not math.isfinite(amount) or amount <= 0
+                or not source or len(source) > 100
+                or not since <= flow_date <= today
+            ):
+                raise ValueError("Invalid capital flow")
+        except (TypeError, ValueError):
+            rejected += 1
+            continue
+        # A reference can prevent duplicate imports without exposing bank IDs.
+        flow_id = str(raw.get("id") or "")
+        if flow_id and flow_id in seen_ids:
+            continue
+        if flow_id:
+            seen_ids.add(flow_id)
+        flows.append({
+            "date": flow_date.isoformat(), "type": raw["type"],
+            "amount": round(amount, 2), "currency": "EUR", "source": source,
+        })
+    flows.sort(key=lambda row: (row["date"], row["type"]))
+    complete = False
+    if isinstance(coverage, dict) and coverage.get("is_complete") is True and not rejected:
+        try:
+            complete = (
+                date.fromisoformat(coverage.get("since", "")) <= since
+                and date.fromisoformat(coverage.get("until", "")) >= today
+            )
+        except (TypeError, ValueError):
+            pass
+    contributions = round(sum(row["amount"] for row in flows if row["type"] == "contribution"), 2)
+    withdrawals = round(sum(row["amount"] for row in flows if row["type"] == "withdrawal"), 2)
+    observed_totals = {
+        "contributions": contributions if flows or complete else None,
+        "withdrawals": withdrawals if flows or complete else None,
+        "net_contributions": round(contributions - withdrawals, 2) if flows or complete else None,
+    }
+    monthly: list[dict[str, Any]] = []
+    if flows or complete:
+        grouped: dict[str, dict[str, float]] = defaultdict(lambda: {"contributions": 0.0, "withdrawals": 0.0})
+        for flow in flows:
+            field = "contributions" if flow["type"] == "contribution" else "withdrawals"
+            grouped[flow["date"][:7]][field] += flow["amount"]
+        cursor = since.replace(day=1)
+        cumulative_contributions = cumulative_withdrawals = 0.0
+        while cursor <= today:
+            period = cursor.isoformat()[:7]
+            values = grouped[period]
+            cumulative_contributions += values["contributions"]
+            cumulative_withdrawals += values["withdrawals"]
+            monthly.append({
+                "date": cursor.isoformat(), "period": period,
+                "contributions": round(values["contributions"], 2),
+                "withdrawals": round(values["withdrawals"], 2),
+                "net_contributions": round(values["contributions"] - values["withdrawals"], 2),
+                "cumulative_contributions": round(cumulative_contributions, 2),
+                "cumulative_withdrawals": round(cumulative_withdrawals, 2),
+                "cumulative_net_contributions": round(cumulative_contributions - cumulative_withdrawals, 2),
+            })
+            cursor = date(cursor.year + (cursor.month == 12), cursor.month % 12 + 1, 1)
+    return {
+        "period": {"since": since.isoformat(), "until": today.isoformat()},
+        "status": "confirmed" if complete else "partial" if flows else "unknown",
+        "is_complete": complete,
+        "totals": observed_totals.copy() if complete else {key: None for key in observed_totals},
+        "observed_totals": observed_totals,
+        "monthly": monthly, "flows": flows,
+        "rejected_flows": rejected,
+        "currency": "EUR",
+        "basis": "Apports personnels et retraits documentes uniquement; aucune estimation a partir des pertes, du stock ou des depenses.",
+        "monthly_basis": "complete_history" if complete else "documented_flows_only",
+        "missing_data": None if complete else "Historique des apports et retraits non rapproche integralement depuis le lancement.",
+    }
+
+
 class Cache:
     def __init__(self, builder: DashboardBuilder, refresh_seconds: int) -> None:
         self.builder = builder
@@ -1924,6 +2087,10 @@ class Cache:
             "grain": "daily_source_monthly_display",
             "label": "24 derniers mois",
         }
+        # Reuse the already fetched full business history. Charts are independent
+        # of the current sales filter and add no connector calls or daily payload.
+        response["chart_history"] = build_chart_history(cumulative_data, response["cumulative"])
+        response["capital_history"] = build_capital_history(self.builder.config, today)
         return response
 
 
@@ -2038,6 +2205,16 @@ def load_config() -> dict[str, Any]:
             "balance": float(snapshot["balance"]), "currency_code": snapshot.get("currency_code", "EUR"),
             "recorded_at": snapshot["recorded_at"], "source": "enable_banking_snapshot",
         }]
+    capital_flows_json = os.environ.get("TESIGN_CAPITAL_FLOWS_JSON")
+    if capital_flows_json:
+        capital = json.loads(capital_flows_json)
+        if isinstance(capital, list):
+            config["business_capital_flows"] = capital
+        elif isinstance(capital, dict):
+            config["business_capital_flows"] = capital.get("flows", [])
+            config["business_capital_coverage"] = capital.get("coverage", {})
+        else:
+            raise ValueError("Historique des apports invalide.")
     return normalize_config(config)
 
 
