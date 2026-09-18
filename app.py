@@ -1865,6 +1865,32 @@ def build_chart_history(
     }
 
 
+def business_plan(config: dict[str, Any]) -> dict[str, Any]:
+    """Expose only explicitly configured planning fields; never invent a target."""
+    raw = config.get("business_plan")
+    if not isinstance(raw, dict):
+        raw = {}
+    income_target = None
+    try:
+        value = float(raw.get("personal_monthly_income_target"))
+        if not isinstance(raw.get("personal_monthly_income_target"), bool) and math.isfinite(value) and value >= 0:
+            income_target = round(value, 2)
+    except (TypeError, ValueError, OverflowError):
+        pass
+    target_date = None
+    try:
+        target_date = date.fromisoformat(raw.get("target_date")).isoformat()
+    except (TypeError, ValueError):
+        pass
+    context = raw.get("target_context")
+    target_context = context.strip()[:120] or None if isinstance(context, str) else None
+    return {
+        "personal_monthly_income_target": income_target,
+        "target_date": target_date,
+        "target_context": target_context,
+    }
+
+
 def build_capital_history(config: dict[str, Any], today: date) -> dict[str, Any]:
     """Documented owner funding only, never inferred from revenue, losses or stock."""
     since = date.fromisoformat(config["business_started_at"])
@@ -2091,6 +2117,7 @@ class Cache:
         # of the current sales filter and add no connector calls or daily payload.
         response["chart_history"] = build_chart_history(cumulative_data, response["cumulative"])
         response["capital_history"] = build_capital_history(self.builder.config, today)
+        response["business_plan"] = business_plan(self.builder.config)
         return response
 
 
@@ -2215,6 +2242,12 @@ def load_config() -> dict[str, Any]:
             config["business_capital_coverage"] = capital.get("coverage", {})
         else:
             raise ValueError("Historique des apports invalide.")
+    business_plan_json = os.environ.get("TESIGN_BUSINESS_PLAN_JSON")
+    if business_plan_json:
+        try:
+            config["business_plan"] = json.loads(business_plan_json)
+        except (TypeError, ValueError):
+            config["business_plan"] = {}
     return normalize_config(config)
 
 

@@ -48,6 +48,10 @@
     .objective-box li { padding-left:3px; }
     .plan-box { margin-top:12px; padding:16px; border:1px solid #b9b5ab; border-radius:12px; background:#fff; }
     .plan-box strong { display:block; margin-top:6px; font-size:24px; letter-spacing:-.6px; }
+    .plan-box h2 { margin:7px 0; font-size:26px; letter-spacing:-.6px; }
+    .plan-steps { margin:16px 0 0; padding:0; list-style:none; }
+    .plan-steps li { padding:12px 0; border-top:1px solid var(--line); line-height:1.5; }
+    .plan-steps b { display:block; margin-bottom:3px; }
     .todo-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; }
     .todo-head h2 { margin-bottom:3px; }
     .todo-actions { display:flex; gap:6px; align-items:center; }
@@ -165,9 +169,16 @@
     <ul id="warnings" class="warnings" aria-label="Limites des données"></ul>
     <section id="cards" class="cards"></section>
     <p id="historyNotice" class="note" hidden></p>
-    <section class="plan-box">
-      <span class="eyebrow">Plan</span>
-      <strong>Tesign : être rentable → gagner de l'argent → acheter Ferrari</strong>
+    <section class="plan-box" aria-labelledby="businessGoalTitle">
+      <span id="businessGoalDate" class="eyebrow">Objectif de revenu personnel</span>
+      <h2 id="businessGoalTitle">Vivre de TESIGN</h2>
+      <p id="businessGoalDescription">Construire un revenu personnel régulier après les dépenses de TESIGN.</p>
+      <ul class="plan-steps" aria-label="Étapes clés de développement">
+        <li><b>Production en Turquie</b>Développer la nouvelle production en suivant la qualité, les délais et le coût complet des pièces.</li>
+        <li><b>Lancement TikTok</b>Faire connaître TESIGN grâce aux contenus et suivre les visites puis les ventes qu'ils génèrent.</li>
+        <li><b>Formation LiveMentor · tunnel de vente</b>Me former pour structurer le parcours entre la découverte de TESIGN et l'achat, puis appliquer les apprentissages à la marque.</li>
+      </ul>
+      <p class="note">Calendrier des étapes à préciser. Repère de pilotage : l'argent disponible après les charges et les besoins de stock, pas seulement le chiffre d'affaires.</p>
     </section>
     <section class="panel kpi-block">
       <div class="todo-head">
@@ -505,7 +516,16 @@
       ];
       aiCoachVerdict.innerHTML=`<strong>Limites de lecture</strong><ul>${rules.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`;
     }
+    function renderBusinessPlan(plan={}) {
+      const income=numeric(plan.personal_monthly_income_target);
+      const targetDate=/^\d{4}-\d{2}-\d{2}$/.test(plan.target_date||'')?new Date(`${plan.target_date}T12:00:00`):null;
+      const formattedDate=targetDate&&!Number.isNaN(targetDate.getTime())?new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'long',year:'numeric'}).format(targetDate):null;
+      document.getElementById('businessGoalDate').textContent=formattedDate?`Objectif au ${formattedDate}`:'Objectif de revenu personnel';
+      document.getElementById('businessGoalTitle').textContent=income>0?`Vivre de TESIGN : ${euro(income)} par mois pour moi`:'Vivre de TESIGN';
+      document.getElementById('businessGoalDescription').textContent=`${income>0?`Me verser un revenu personnel régulier de ${euro(income)} par mois`:'Construire un revenu personnel régulier'}, après les dépenses de TESIGN.${plan.target_context?` ${plan.target_context}${formattedDate?` : ${formattedDate}`:''}.`:formattedDate?` Échéance : ${formattedDate}.`:''}`;
+    }
     function render(d) {
+      renderBusinessPlan(d.business_plan||{});
       const t=d.totals, cumulative=d.cumulative?.totals||{}, cumulativeComplete=Boolean(d.cumulative?.is_complete);
       period.textContent=`${d.period.since} au ${d.period.until} (${d.period.days} jours)`;
       const sourceChecks=Object.entries(d.data_status||{}).filter(([,value])=>value?.checked_at).map(([key,value])=>`${({'shopify_orders':'Commandes Shopify','shopify_analytics':'Shopify Analytics','meta_account':'Meta compte','meta_campaigns':'Meta campagnes'})[key]||key} : ${timestampLabel(value.checked_at)} (${({'available':'lecture réussie','partial':'couverture partielle','unavailable':'indisponible','not_requested':'non interrogé'})[value.status]||'état inconnu'})`);

@@ -39,6 +39,8 @@ Les différences avec Shopify et les lots entrants non rapprochés restent expli
 
 Les apports personnels sont distincts du CA, des dépenses et du solde bancaire. La configuration privée `business_capital_flows` accepte des flux documentés : `scope: business`, `type: contribution|withdrawal`, `date`, `amount` positif, `currency: EUR`, `source` et `id` facultatif pour dédoublonner. `TESIGN_CAPITAL_FLOWS_JSON` accepte cette liste ou `{flows, coverage}`. Ne pas placer de libellé bancaire sensible dans `source`.
 
+L'objectif de revenu est lu depuis `business_plan` ou la variable privée `TESIGN_BUSINESS_PLAN_JSON` : `personal_monthly_income_target`, `target_date` (ISO) et `target_context`. Les valeurs personnelles ne sont pas inscrites dans les sources publiques. Les priorités de développement sont affichées séparément des tâches sauvegardées dans le navigateur.
+
 Sans rapprochement intégral attesté par `business_capital_coverage` (`since`, `until`, `is_complete: true`), les flux ne sont qu'un minimum documenté : les totaux complets restent inconnus. Aucun versement Shopify, dépense ou perte n'est transformé automatiquement en apport. Aucun formulaire public ne modifie ces données.
 
 ## Exécution
