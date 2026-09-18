@@ -100,13 +100,13 @@
     .pill.incoming { background:#fff0c9; color:#755500; }
     .pill.rentable { background:#daf2e5; color:var(--good); }
     .pill.perte { background:#ffe6e2; color:var(--bad); }
-    .warnings { display:none; margin:12px 0 0; padding:0; list-style:none; }
+    .warnings { margin:0 0 14px; padding:0; list-style:none; }
     .warnings li { background:#fff2d6; border:1px solid #efd99e; border-radius:8px; margin-top:7px; padding:9px 11px; }
     .hidden-panel { display:none; }
     .note { margin:-7px 0 13px; color:var(--muted); font-size:12px; }
     .error { margin:20px 32px; padding:14px; border-radius:10px; background:#ffe6e2; color:var(--bad); }
-    @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.ai-grid{grid-template-columns:repeat(2,1fr)} }
-    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid,.todo-list,.ai-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
+    @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.ai-grid,.trend-grid{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .status{flex-direction:column;gap:6px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid,.todo-list,.ai-grid,.trend-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
@@ -121,6 +121,7 @@
   <div id="error" class="error" hidden></div>
   <main>
     <div class="status"><span id="period"></span><span id="updated"></span></div>
+    <ul id="warnings" class="warnings" aria-label="Limites des données"></ul>
     <section id="cards" class="cards"></section>
     <p id="historyNotice" class="note" hidden></p>
     <section class="plan-box">
@@ -141,13 +142,14 @@
       <div id="todoList" class="todo-list"></div>
     </section>
     <section class="panel kpi-block">
-      <h2>Coach IA Tesign</h2>
-      <p class="note">Analyse automatique des données disponibles pour suivre le plan : rentabilité → cash → Ferrari F12 Berlinetta à 320 000 €.</p>
+      <h2>Lecture des données</h2>
+      <p class="note">Règles de lecture explicites : ventes Shopify, attribution déclarée par Meta et estimations de coûts. Ces indicateurs ne suffisent pas à décider d'un budget publicitaire.</p>
       <div id="aiCoachCards" class="ai-grid"></div>
       <div id="aiCoachVerdict" class="ai-verdict"></div>
     </section>
-    <section class="panel kpi-block hidden-panel">
-      <h2>Compte bancaire</h2>
+    <section class="panel kpi-block">
+      <h2>Trésorerie professionnelle TESIGN</h2>
+      <p class="note">Comptes explicitement rattachés à TESIGN. Un solde bancaire n'est pas un bénéfice disponible.</p>
       <div id="bankAccounts" class="bank-grid"></div>
       <p id="bankConclusion" class="block-conclusion"></p>
       <div id="bankTransactionsWrap" class="table-wrap bank-transactions" hidden><table id="bankTransactions"></table></div>
@@ -157,13 +159,13 @@
     <section class="panel kpi-block">
       <h2>Meta Ads</h2>
       <div id="metaCards" class="kpi-grid meta"></div>
-      <div class="margin-box">
-        <span class="eyebrow">Repères de marge</span>
-        <div id="marginProfiles" class="margin-grid"></div>
-        <p class="note" style="margin:10px 0 0">Projection : CA période × marge − Meta − Geremy − charges fixes − autres dépenses.</p>
-      </div>
-      <div class="campaign-roas"><h2>ROAS par campagne</h2><div class="table-wrap"><table id="campaigns"></table></div></div>
+      <div class="campaign-roas"><h2>Attribution Meta par campagne</h2><p class="note">Chiffres déclarés par Meta selon sa fenêtre d'attribution ; ils ne prouvent pas à eux seuls l'origine de chaque commande Shopify.</p><div class="table-wrap"><table id="campaigns"></table></div></div>
       <p id="metaConclusion" class="block-conclusion"></p>
+    </section>
+    <section class="panel kpi-block">
+      <h2>Coûts et limites du calcul</h2>
+      <div id="costAssumptions" class="margin-grid"></div>
+      <p id="costConclusion" class="block-conclusion"></p>
     </section>
     <section class="panel kpi-block">
       <h2>Affiliation & influenceurs</h2>
@@ -177,27 +179,31 @@
       <p id="chartInsight" class="block-conclusion"></p>
     </section>
     <section class="grid">
-      <div class="panel"><h2>Évolution 24 mois : CA, marge, Meta et résultat</h2><canvas id="chart" width="900" height="270"></canvas><p class="note">Vue mensuelle sur 2 ans. La courbe Résultat passe au-dessus de zéro quand Tesign est positif, et sous zéro quand Tesign est négatif.</p></div>
+      <div class="panel"><h2>Historique disponible : CA, marge estimée, Meta et résultat estimé</h2><canvas id="chart" width="900" height="270"></canvas><p class="note">Vue mensuelle des données accessibles, jusqu'à 24 mois. Les estimations dépendent des coûts renseignés et de la couverture des sources ; une valeur inconnue n'est pas un zéro.</p></div>
       <div class="panel">
         <h2>Etat du stock</h2>
-        <div class="stock-summary"><div><span class="eyebrow">Disponible France</span><strong id="available">-</strong></div><div><span class="eyebrow">Entrant Turquie</span><strong id="incoming">-</strong></div></div>
-        <ul id="warnings" class="warnings"></ul>
+        <p id="stockFreshness" class="note"></p>
+        <div class="stock-summary"><div><span class="eyebrow">Stock estimé des lots disponibles</span><strong id="available">-</strong></div><div><span class="eyebrow">Lots annoncés entrants</span><strong id="incoming">-</strong></div></div>
       </div>
     </section>
     <section class="grid">
       <div class="panel"><h2>Lots de stock</h2><div class="table-wrap"><table id="stock"></table></div></div>
       <div class="panel"><h2>Commandes Shopify</h2><div class="table-wrap"><table id="orders"></table></div></div>
     </section>
-    <section class="panel hidden-panel" style="margin-top:12px"><h2>Performance quotidienne croisee</h2><p class="note">Le resultat estime inclut <strong id="dailyFixed">-</strong> de charges fixes par jour, meme sans vente.</p><div class="table-wrap"><table id="daily"></table></div></section>
+    <section class="panel hidden-panel" style="margin-top:12px"><h2>Performance quotidienne croisée</h2><p class="note">Repère de charges fixes configurées : <strong id="dailyFixed">-</strong> par jour moyen ; montants à confirmer.</p><div class="table-wrap"><table id="daily"></table></div></section>
   </main>
   <script>
-    const moneyFmt = (v,currency='EUR') => v == null ? '-' : new Intl.NumberFormat('fr-FR',{style:'currency',currency:currency||'EUR'}).format(v);
+    const numeric = v => v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
+    const moneyFmt = (v,currency='EUR') => numeric(v) == null ? 'Indisponible' : new Intl.NumberFormat('fr-FR',{style:'currency',currency:currency||'EUR'}).format(Number(v));
     const euro = v => moneyFmt(v,'EUR');
-    const number = v => v == null ? '-' : new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(v);
+    const number = v => numeric(v) == null ? 'Indisponible' : new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(Number(v));
+    const tone = v => numeric(v) == null ? '' : Number(v) >= 0 ? 'positive' : 'negative';
+    const totalKnown = (rows,key) => !rows.length || rows.some(row=>numeric(row[key])==null) ? null : rows.reduce((sum,row)=>sum+Number(row[key]),0);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const today = new Date(); const prior = new Date(today); prior.setDate(today.getDate()-90);
     const dateValue = d => d.toISOString().slice(0,10);
     const dateLabel = value => value ? new Intl.DateTimeFormat('fr-FR').format(new Date(`${value}T00:00:00`)) : '-';
+    const timestampLabel = value => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toLocaleString('fr-FR') : 'date inconnue';
     since.value = dateValue(prior); until.value = dateValue(today);
 
     function table(id, headers, rows) {
@@ -206,7 +212,7 @@
     const TODO_KEY = 'tesign.todo.v1';
     const TODO_STATES = ['pas encore', 'en cours', 'fait'];
     const defaultTodos = [
-      { text: 'Prochain objectif — Nouveau deal avec Geremy : passer à 20 % de commission sur le profit généré par Meta.', status: 'pas encore' },
+      { text: 'Confirmer les coûts complets et la commission convenue avec Geremy.', status: 'pas encore' },
       { text: 'Favikon : attendre réponse code promo', status: 'en cours' },
       { text: 'Faire liste influenceurs Favikon', status: 'pas encore' },
       { text: 'Contacter et sélectionner influenceurs', status: 'pas encore' },
@@ -277,232 +283,186 @@
         if(!month) return;
         if(!months.has(month)) months.set(month, { date: month, revenue: 0, contribution_margin: 0, ad_spend: 0, estimated_result: 0, orders: 0 });
         const bucket = months.get(month);
-        bucket.revenue += Number(row.revenue) || 0;
-        bucket.contribution_margin += Number(row.contribution_margin) || 0;
-        bucket.ad_spend += Number(row.ad_spend) || 0;
-        bucket.estimated_result += Number(row.estimated_result) || 0;
-        bucket.orders += Number(row.orders) || 0;
+        ['revenue','contribution_margin','ad_spend','estimated_result','orders'].forEach(key=>{
+          bucket[key]=bucket[key]==null||numeric(row[key])==null?null:bucket[key]+Number(row[key]);
+        });
       });
       return [...months.values()].map(row => ({
         ...row,
-        revenue: Math.round(row.revenue * 100) / 100,
-        contribution_margin: Math.round(row.contribution_margin * 100) / 100,
-        ad_spend: Math.round(row.ad_spend * 100) / 100,
-        estimated_result: Math.round(row.estimated_result * 100) / 100
+        revenue: row.revenue==null?null:Math.round(row.revenue * 100) / 100,
+        contribution_margin: row.contribution_margin==null?null:Math.round(row.contribution_margin * 100) / 100,
+        ad_spend: row.ad_spend==null?null:Math.round(row.ad_spend * 100) / 100,
+        estimated_result: row.estimated_result==null?null:Math.round(row.estimated_result * 100) / 100
       }));
     }
     function drawChart(rows) {
       const canvas = document.getElementById('chart'), ctx = canvas.getContext('2d');
       const w=canvas.width,h=canvas.height,p=44; ctx.clearRect(0,0,w,h);
-      const values=rows.flatMap(r=>[Number(r.revenue)||0,Number(r.contribution_margin)||0,Number(r.ad_spend)||0,Number(r.estimated_result)||0]);
+      const values=rows.flatMap(r=>[r.revenue,r.contribution_margin,r.ad_spend,r.estimated_result]).map(numeric).filter(v=>v!=null);
       const max=Math.max(1,...values)*1.15;
       const min=Math.min(0,...values)*1.15;
       const range=Math.max(1,max-min);
       const x=i=>p+(w-2*p)*(rows.length===1?0:i/(rows.length-1));
-      const y=value=>h-p-(h-2*p)*((Number(value)||0)-min)/range;
+      const y=value=>h-p-(h-2*p)*(Number(value)-min)/range;
       const zeroY=y(0);
       ctx.font='12px Inter, Segoe UI, Arial';
       ctx.strokeStyle='#dedbd4'; ctx.lineWidth=1;
       for(let i=0;i<5;i++){const value=max-(range*i/4),yy=y(value);ctx.beginPath();ctx.moveTo(p,yy);ctx.lineTo(w-p,yy);ctx.stroke();ctx.fillStyle='#77736b';ctx.fillText(euro(value),6,yy+4)}
       ctx.strokeStyle='#aaa69d';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(p,zeroY);ctx.lineTo(w-p,zeroY);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#77736b';ctx.fillText('0 €',w-p+5,zeroY+4);
-      const line=(getValue,color,width=3,dash=[])=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();rows.forEach((r,i)=>{const yy=y(getValue(r,i));i?ctx.lineTo(x(i),yy):ctx.moveTo(x(i),yy)});ctx.stroke();ctx.setLineDash([])};
-      rows.forEach((r,i)=>{const result=Number(r.estimated_result)||0;if(!result)return;ctx.fillStyle=result>0?'rgba(23,107,77,.12)':'rgba(180,66,53,.13)';const left=i===0?p:((x(i-1)+x(i))/2),right=i===rows.length-1?w-p:((x(i)+x(i+1))/2);ctx.fillRect(left,p,Math.max(1,right-left),h-2*p)});
+      const line=(getValue,color,width=3,dash=[])=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();let started=false;rows.forEach((r,i)=>{const value=numeric(getValue(r,i));if(value==null){started=false;return;}const yy=y(value);started?ctx.lineTo(x(i),yy):ctx.moveTo(x(i),yy);started=true;});ctx.stroke();ctx.setLineDash([])};
+      rows.forEach((r,i)=>{const result=numeric(r.estimated_result);if(result==null||result===0)return;ctx.fillStyle=result>0?'rgba(23,107,77,.12)':'rgba(180,66,53,.13)';const left=i===0?p:((x(i-1)+x(i))/2),right=i===rows.length-1?w-p:((x(i)+x(i+1))/2);ctx.fillRect(left,p,Math.max(1,right-left),h-2*p)});
       line(r=>r.revenue,'#151515',2.5);
       line(r=>r.contribution_margin,'#176b4d',3);
       line(r=>r.ad_spend,'#a7c900',2.5,[7,5]);
       line(r=>r.estimated_result,'#b44235',3);
-      const positiveMonths=rows.filter(r=>Number(r.estimated_result)>0).length;
-      const active=rows.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
-      const best=[...active].sort((a,b)=>(Number(b.estimated_result)||0)-(Number(a.estimated_result)||0))[0];
-      const worst=[...active].sort((a,b)=>(Number(a.estimated_result)||0)-(Number(b.estimated_result)||0))[0];
-      [best,worst].filter(Boolean).forEach((r,idx)=>{const i=rows.findIndex(day=>day.date===r.date),yy=y(Number(r.estimated_result)||0);ctx.fillStyle=idx?'#b44235':'#176b4d';ctx.beginPath();ctx.arc(x(i),yy,5,0,Math.PI*2);ctx.fill();ctx.fillText(`${idx?'Faible':'Fort'} ${r.date.slice(5)} ${euro(r.estimated_result)}`,Math.min(w-190,x(i)+8),Math.max(18,yy-8))});
+      const knownMonths=rows.filter(r=>numeric(r.estimated_result)!=null);
+      const positiveMonths=knownMonths.filter(r=>Number(r.estimated_result)>0).length;
+      const active=knownMonths.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
+      const best=[...active].sort((a,b)=>Number(b.estimated_result)-Number(a.estimated_result))[0];
+      const worst=[...active].sort((a,b)=>Number(a.estimated_result)-Number(b.estimated_result))[0];
+      [best,worst].filter(Boolean).forEach((r,idx)=>{const i=rows.findIndex(day=>day.date===r.date),yy=y(Number(r.estimated_result));ctx.fillStyle=idx?'#b44235':'#176b4d';ctx.beginPath();ctx.arc(x(i),yy,5,0,Math.PI*2);ctx.fill();ctx.fillText(`${idx?'Faible':'Fort'} ${r.date.slice(5)} ${euro(r.estimated_result)}`,Math.min(w-190,x(i)+8),Math.max(18,yy-8))});
       const legend=(x0,color,label,dash=false)=>{ctx.strokeStyle=color;ctx.lineWidth=3;ctx.setLineDash(dash?[7,5]:[]);ctx.beginPath();ctx.moveTo(x0,13);ctx.lineTo(x0+18,13);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#151515';ctx.fillText(label,x0+24,17)};
-      legend(p,'#151515','CA');legend(p+75,'#176b4d','Marge');legend(p+170,'#a7c900','Meta',true);legend(p+255,'#b44235','Résultat');
-      ctx.fillStyle='#77736b';ctx.fillText(`${positiveMonths}/${rows.length} mois positifs`,w-150,17);
+      legend(p,'#151515','CA');legend(p+75,'#176b4d','Marge estimée');legend(p+215,'#a7c900','Meta',true);legend(p+300,'#b44235','Résultat estimé');
+      ctx.fillStyle='#77736b';ctx.fillText(`${positiveMonths}/${knownMonths.length} estimations > 0`,w-175,17);
       if(rows.length){ctx.fillStyle='#77736b';ctx.fillText(rows[0].date,p,h-12);ctx.fillText(rows[rows.length-1].date,w-p-48,h-12)}
     }
-    function renderAiCoach(d, trendMonths) {
-      const t=d.totals, cumulative=d.cumulative?.totals||{};
-      const cumulativeComplete=Boolean(d.cumulative?.is_complete);
-      const ferrariTarget=320000;
-      const cumulativeResult=Number(cumulative.estimated_result)||0;
-      const ferrariGap=Math.max(0,ferrariTarget-cumulativeResult);
-      const periodResult=Number(t.estimated_result)||0;
-      const roas=Number(t.blended_roas)||0;
-      const targetRoas=Number(t.target_roas)||0;
-      const cpa=Number(t.cpa)||0;
-      const targetCpa=Number(t.target_cpa)||15;
-      const adSpend=Number(t.ad_spend)||0;
-      const margin=Number(t.contribution_margin)||0;
-      const orders=Number(t.orders)||0;
-      const avgMonthlyResult=trendMonths.length?trendMonths.reduce((sum,row)=>sum+(Number(row.estimated_result)||0),0)/trendMonths.length:0;
-      const profitableMonths=trendMonths.filter(row=>Number(row.estimated_result)>0).length;
-      const ferrariMonths=avgMonthlyResult>0?Math.ceil(ferrariGap/avgMonthlyResult):null;
-      const acquisitionIssue=adSpend>0&&(roas<targetRoas||cpa>targetCpa||margin<adSpend);
-      const salesIssue=orders===0;
+    function renderDataReading(d) {
+      const t=d.totals;
+      const result=numeric(t.estimated_result), purchases=numeric(t.meta_purchases), spend=numeric(t.ad_spend);
       const cards=[
-        {
-          title:'Diagnostic',
-          value:periodResult>=0?'Période positive':'Période négative',
-          tone:periodResult>=0?'positive':'negative',
-          body:periodResult>=0
-            ? `Résultat période ${euro(periodResult)}. Le sujet devient la régularité et le volume.`
-            : `Résultat période ${euro(periodResult)}. Tesign doit d'abord arrêter les ventes non rentables.`
-        },
-        {
-          title:'Priorité 1',
-          value:acquisitionIssue?'Réparer Meta':'Tester sans forcer',
-          tone:acquisitionIssue?'negative':'positive',
-          body:acquisitionIssue
-            ? `Objectif : CPA ≤ ${euro(targetCpa)} et ROAS ≥ ${number(targetRoas)} avant de remettre du budget fort.`
-            : `Meta est moins dangereux sur cette période. Monter progressivement, pas brutalement.`
-        },
-        {
-          title:'Chemin Ferrari',
-          value:cumulativeComplete?euro(ferrariGap):'Historique incomplet',
-          tone:'negative',
-          body:!cumulativeComplete
-            ? 'Projection suspendue : le résultat cumulé depuis la création ne peut pas être établi avec un historique incomplet.'
-            : ferrariMonths
-            ? `Au rythme moyen 24 mois (${euro(avgMonthlyResult)}/mois), il faudrait environ ${number(ferrariMonths)} mois. Il faut changer d'échelle.`
-            : `Tant que le résultat mensuel moyen est négatif (${euro(avgMonthlyResult)}), la F12 s'éloigne.`
-        }
+        {title:'Ventes Shopify',value:number(t.orders),body:`Commandes payées de la période. CA total : ${euro(t.revenue)}. Ces commandes ne sont pas toutes attribuables à Meta.`},
+        {title:'Attribution Meta',value:purchases==null?'Indisponible':`${number(purchases)} achat(s) attribué(s)`,body:purchases===0?'Meta ne déclare aucun achat sur cette période : le CPA Meta est indisponible. Cela ne prouve pas l’absence de ventes sur Shopify.':`CA attribué déclaré : ${euro(t.meta_purchase_value)}. ROAS Meta = CA attribué / dépenses Meta ; CPA Meta = dépenses / achats attribués.`},
+        {title:'Résultat estimé',value:euro(result),body:result==null?'Le résultat ne peut pas être calculé avec les sources disponibles.':`Estimation ${result>=0?'positive':'négative'} avec les seuls coûts renseignés. Les coûts historiques, modes de livraison et accords non confirmés peuvent la modifier.`}
       ];
-      aiCoachCards.innerHTML=cards.map(card=>`<div class="ai-card"><span class="eyebrow">${esc(card.title)}</span><strong class="${card.tone==='positive'?'positive':'negative'}">${esc(card.value)}</strong><p>${esc(card.body)}</p></div>`).join('');
-      const priorities=salesIssue
-        ? ['Remettre du trafic qualifié sur le site.', 'Vérifier offre, prix, pages produit et preuves sociales.', 'Ne pas juger la rentabilité avant d’avoir des commandes.']
-        : acquisitionIssue
-          ? ['Ne pas scaler Meta tant que le CPA dépasse la cible.', 'Écouler le stock Turquie avec affiliation et micro-influenceurs trackés.', 'Passer Geremy sur une commission au profit généré, pas au CA.', 'Couper vite les créas/campagnes qui consomment sans commandes.']
-          : ['Augmenter le volume par paliers contrôlés.', 'Réinvestir uniquement une partie du bénéfice.', 'Documenter les créas, offres et influenceurs qui vendent vraiment.'];
-      aiCoachVerdict.innerHTML=`<strong>Avis IA :</strong> ${periodResult<0?'le business peut marcher, mais pas avec une acquisition plus chère que la marge.':'le signal est meilleur, mais il faut prouver que la rentabilité tient sur plusieurs semaines.'}<ul>${priorities.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`;
+      aiCoachCards.innerHTML=cards.map(card=>`<div class="ai-card"><span class="eyebrow">${esc(card.title)}</span><strong>${esc(card.value)}</strong><p>${esc(card.body)}</p></div>`).join('');
+      const rules=[
+        spend==null?'Dépenses Meta indisponibles : aucun ratio publicitaire ne peut être interprété.':spend===0?'Aucune dépense Meta déclarée sur la période : ROAS et CPA sont indisponibles.':'Le MER utilise toutes les ventes Shopify : il mesure le rapport CA total / dépenses Meta, sans attribuer les ventes à Meta.',
+        d.cumulative?.is_complete?'La couverture de l’historique est déclarée complète ; les coûts restent soumis aux limites indiquées ci-dessous.':'Historique incomplet ou non confirmé : aucun bénéfice depuis la création ne peut être affirmé.',
+        'Le solde professionnel doit être rapproché des échéances, achats de stock et charges avant de déterminer le cash disponible.'
+      ];
+      aiCoachVerdict.innerHTML=`<strong>Limites de lecture</strong><ul>${rules.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`;
     }
     function render(d) {
-      const t=d.totals, cumulative=d.cumulative.totals, cumulativeComplete=d.cumulative.is_complete;
+      const t=d.totals, cumulative=d.cumulative?.totals||{}, cumulativeComplete=Boolean(d.cumulative?.is_complete);
       period.textContent=`${d.period.since} au ${d.period.until} (${d.period.days} jours)`;
-      updated.textContent=`Mis a jour ${new Date(d.generated_at).toLocaleString('fr-FR')}`;
-      const cumulativeClass=cumulativeComplete?(cumulative.estimated_result>=0?'positive':'negative'):'';
+      const sourceChecks=Object.entries(d.data_status||{}).filter(([,value])=>value?.checked_at).map(([key,value])=>`${({'shopify_orders':'Commandes Shopify','shopify_analytics':'Shopify Analytics','meta_account':'Meta compte','meta_campaigns':'Meta campagnes'})[key]||key} : ${timestampLabel(value.checked_at)} (${({'available':'lecture réussie','partial':'couverture partielle','unavailable':'indisponible','not_requested':'non interrogé'})[value.status]||'état inconnu'})`);
+      updated.textContent=`Données de la période assemblées le ${timestampLabel(d.data_freshness?.selected_period_generated_at||d.generated_at)}`;
+      updated.title=sourceChecks.join(' · ')||'Date de mise à jour des sources non fournie';
+      const cumulativeClass=cumulativeComplete?tone(cumulative.estimated_result):'';
       const cumulativeValue=cumulativeComplete?euro(cumulative.estimated_result):'À recalculer';
-      const cumulativeNote=cumulativeComplete?'Résultat estimé selon les données disponibles':(d.cumulative.missing_data||'Historique incomplet — le résultat depuis la création reste à recalculer');
-      const cumulativeBasis=d.cumulative.meta_history_truncated?`Données accessibles du ${dateLabel(d.cumulative.period.since)} au ${dateLabel(d.cumulative.period.until)}`:'Depuis création — tous revenus moins toutes dépenses connues';
-      const cumulativeCard=`<div class="card primary"><span class="eyebrow">Résultat cumulé Tesign</span><strong class="${cumulativeClass}">${esc(cumulativeValue)}</strong><small>${esc(cumulativeBasis)}<span class="estimate-note">${esc(cumulativeNote)}</span></small></div>`;
-      cardsEl=document.getElementById('cards');cardsEl.innerHTML=cumulativeCard;
+      const cumulativeNote=cumulativeComplete?'Estimation avec les coûts renseignés ; coûts historiques non certifiés':(d.cumulative?.missing_data||'Historique incomplet ou non confirmé — le résultat depuis la création reste à recalculer');
+      const cumulativeBasis=d.cumulative?.meta_history_truncated?`Données accessibles du ${dateLabel(d.cumulative.period.since)} au ${dateLabel(d.cumulative.period.until)}`:'Depuis création — revenus et dépenses accessibles';
+      const cumulativeCard=`<div class="card primary"><span class="eyebrow">Résultat cumulé estimé TESIGN</span><strong class="${cumulativeClass}">${esc(cumulativeValue)}</strong><small>${esc(cumulativeBasis)}<span class="estimate-note">${esc(cumulativeNote)}</span></small></div>`;
+      const cardsEl=document.getElementById('cards');cardsEl.innerHTML=cumulativeCard;
       const historyNotice=document.getElementById('historyNotice');
-      historyNotice.hidden=!d.cumulative.meta_history_truncated;
-      historyNotice.textContent=d.cumulative.meta_history_truncated?`Historique limité : Meta ne fournit plus les statistiques avant le ${dateLabel(d.cumulative.meta_history_available_since)}. Le cumul depuis la création est incomplet ; les données de la période sélectionnée restent affichées.`:'';
-      const cardHtml=c=>`<div class="card"><span class="eyebrow">${esc(c[0])}</span><strong class="${c[3]==null?'':(c[3]>=0?'positive':'negative')}">${esc(c[1])}</strong><small>${esc(c[2])}</small></div>`;
+      historyNotice.hidden=false;
+      historyNotice.style.margin='10px 0';
+      historyNotice.textContent=`${cumulativeNote}. ${d.data_freshness?.cumulative_generated_at?`Données du cumul assemblées le ${timestampLabel(d.data_freshness.cumulative_generated_at)}. `:''}${sourceChecks.length?`Dernières lectures des sources de la période : ${sourceChecks.join(' · ')}. Ces dates sont les dates de lecture, pas les dates de finalisation des données chez les fournisseurs.`:'Fraîcheur des sources inconnue : la date de calcul ne prouve pas leur actualité.'}`;
+      const cardHtml=c=>`<div class="card"><span class="eyebrow">${esc(c[0])}</span><strong class="${tone(c[3])}">${esc(c[1])}</strong><small>${esc(c[2])}</small></div>`;
       const accounts=d.financial?.bank_accounts||[];
-      const powens=d.financial?.powens||{};
-      const bridge=d.financial?.bridge||{};
+      const banking=d.financial?.banking||{};
       bankAccounts.innerHTML=accounts.map(account=>{
-        const balance=account.balance==null?null:Number(account.balance);
-        const connected=account.source&&account.source!=='non_connecte';
-        const source=account.source==='manual'?'manuel':(account.source==='powens_sandbox'?'Powens sandbox':(account.source==='powens'?'Powens':(account.source==='bridge_sandbox'?'Bridge sandbox':(account.source==='bridge'?'Bridge':(account.source==='open_banking'?'Open Banking':(connected?account.source:'non connecté'))))));
-        const recorded=account.recorded_at?`au ${esc(account.recorded_at)}`:'temps réel non activé';
-        return `<div class="bank-card${connected?'':' not-connected'}"><span class="eyebrow">${esc(account.label)}</span><strong class="${balance==null?'':(balance>=0?'positive':'negative')}">${balance==null?'Non renseigné':moneyFmt(balance,account.currency_code||'EUR')}</strong><small>Source : ${esc(source)} · ${recorded}</small></div>`;
-      }).join('');
-      const connectedAccounts=accounts.filter(account=>account.source&&account.source!=='non_connecte').length;
+        const balance=numeric(account.balance);
+        const source=account.source||banking.source||'non renseignée';
+        const isManual=source==='manual';
+        const isSandbox=Boolean(account.is_demo)||String(source).includes('sandbox')||String(source).includes('demo')||account.environment==='sandbox';
+        const recorded=account.recorded_at||account.updated_at;
+        const dated=recorded?timestampLabel(recorded):'date du solde inconnue';
+        const stale=account.stale??banking.stale??banking.status==='stale';
+        const status=isSandbox?'Données de test — hors trésorerie réelle':balance==null?'Solde indisponible':isManual?`Solde saisi manuellement${stale?' — ancien ou non daté, à actualiser':''}`:stale?'Dernier solde connu — actualisation nécessaire':'Solde connu à la date indiquée';
+        return `<div class="bank-card${balance==null?' not-connected':''}"><span class="eyebrow">${esc(account.label||'Compte professionnel TESIGN')}</span><strong class="${isSandbox?'':tone(balance)}">${balance==null?'Indisponible':esc(moneyFmt(balance,account.currency_code||'EUR'))}</strong><small>${esc(status)}<br>Source : ${esc(source==='enable_banking_snapshot'?'Enable Banking — relevé ponctuel':source)} · ${esc(dated)}</small></div>`;
+      }).join('')||'<div class="bank-card not-connected"><span class="eyebrow">Compte professionnel TESIGN</span><strong>Indisponible</strong><small>Aucun compte professionnel confirmé dans les données disponibles.</small></div>';
       const transactions=d.financial?.bank_transactions||[];
       bankTransactionsWrap.hidden=!transactions.length;
       if(transactions.length){
-        table('bankTransactions',['Date','Description','Type','Montant'],transactions.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.description)}</td><td>${esc(r.operation_type||'-')}</td><td class="${Number(r.amount)>=0?'positive':'negative'}">${moneyFmt(r.amount,r.currency_code||'EUR')}</td></tr>`));
+        table('bankTransactions',['Date','Description','Type','Montant'],transactions.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.description)}</td><td>${esc(r.operation_type||'-')}</td><td class="${tone(r.amount)}">${esc(moneyFmt(r.amount,r.currency_code||'EUR'))}</td></tr>`));
       }
-      bankConclusion.innerHTML=powens.connected
-        ? `<strong>Conclusion bancaire :</strong> Powens est connecté en ${esc(powens.environment||'sandbox')} avec ${number(powens.account_count)} comptes synchronisés. ${powens.transactions_visible?'Transactions visibles dans le dashboard.':'Transactions détaillées masquées par défaut.'}`
-        : powens.error
-        ? `<strong>Conclusion bancaire :</strong> Powens est configuré, mais la synchronisation a échoué : ${esc(powens.error)}`
-        : powens.client_configured
-        ? '<strong>Conclusion bancaire :</strong> Powens est préparé. Il manque encore le token utilisateur ou la connexion banque pour afficher les soldes en direct.'
-        : bridge.connected
-        ? `<strong>Conclusion bancaire :</strong> Bridge est connecté en ${esc(bridge.environment||'sandbox')} avec ${number(bridge.account_count)} comptes synchronisés. ${bridge.transactions_visible?'Transactions de test visibles localement.':'Transactions détaillées masquées sur le déploiement public.'}`
-        : connectedAccounts
-        ? '<strong>Conclusion bancaire :</strong> Les soldes affichés viennent des données disponibles. Bridge n’est pas encore connecté à une banque réelle.'
-        : '<strong>Conclusion bancaire :</strong> Aucun compte n’est connecté en temps réel. Ne saisis pas tes identifiants bancaires ici ; il faut passer par un export CSV ou un connecteur Open Banking sécurisé.';
-      const mix=t.sales_mix||{}; const mixNote=mix.tshirt_share==null?'mix produit indisponible':`cible 15 € — ${number(mix.tshirt_share)} % tee-shirts / ${number(mix.sweatshirt_share)} % pulls`;
-      const roasNote=`cible après marge ${number(t.current_margin_rate*100)} % et Geremy 9 % — seuil brut ${number(t.gross_break_even_roas)}`;
-      const longHistoryIncomplete=!(d.cumulative.shopify_history_complete??cumulativeComplete)&&d.period.days>180;
+      bankConclusion.innerHTML=`<strong>État bancaire :</strong> ${esc(banking.message||'Seuls les soldes documentés ci-dessus sont disponibles ; leur fraîcheur dépend de la source et de la date indiquées.')} ${banking.updated_at?`Dernière date disponible : ${esc(timestampLabel(banking.updated_at))}.`:''} Les soldes manuels ou de test ne constituent pas une synchronisation bancaire réelle.`;
+      const longHistoryIncomplete=!(d.cumulative?.shopify_history_complete??cumulativeComplete)&&d.period.days>180;
       const periodResultValue=longHistoryIncomplete?'À recalculer':euro(t.estimated_result);
-      const periodResultNote=longHistoryIncomplete?'historique Shopify incomplet sur cette période':`charges fixes depuis la première vente (${t.fixed_cost_days} jours)`;
+      const periodResultNote=longHistoryIncomplete?'historique Shopify incomplet sur cette période':`coûts renseignés ; historique, livraison et commission à vérifier`;
       healthPeriod.textContent=`Période prise en compte : du ${dateLabel(d.period.since)} au ${dateLabel(d.period.until)} (${number(d.period.days)} jours).`;
-      const health=[['CA période',euro(t.revenue),`${t.orders} commandes`],['Résultat période',periodResultValue,periodResultNote,longHistoryIncomplete?null:t.estimated_result],['Marge contributive',euro(t.contribution_margin),'avant publicité, Geremy et charges fixes'],['ROAS réel / cible',`${number(t.blended_roas)} / ${number(t.target_roas)}`,roasNote],['CPA réel / cible',`${euro(t.cpa)} / ${euro(t.target_cpa)}`,mixNote]];
+      const health=[['CA période',euro(t.revenue),`${number(t.orders)} commandes Shopify`],['Résultat période estimé',periodResultValue,periodResultNote,longHistoryIncomplete?null:t.estimated_result],['Marge contributive estimée',euro(t.contribution_margin),'coûts variables renseignés ; avant Meta et charges fixes'],['MER',number(t.blended_roas),'CA total Shopify / dépenses Meta ; toutes origines'],['Meta / commande Shopify',euro(t.blended_cpa),'dépenses Meta / toutes les commandes Shopify ; pas un CPA attribué']];
       healthCards.innerHTML=health.map(cardHtml).join('');
-      const paidSalesUnprofitable=Number(t.ad_spend)>0&&Number(t.estimated_result)<0;
-      healthConclusion.innerHTML=paidSalesUnprofitable
-        ? '<strong>Conclusion nette :</strong> Tesign vend, mais les ventes achetées via Meta ne sont pas rentables.<br>Les gens achètent. Mais tu achètes tes ventes trop cher.'
-        : Number(t.estimated_result)<0
-          ? '<strong>Conclusion nette :</strong> Tesign vend, mais les coûts connus dépassent encore la marge générée sur cette période.'
-          : '<strong>Conclusion nette :</strong> Tesign vend et le résultat de la période est positif. Il faut préserver cette rentabilité en maîtrisant le coût des ventes.';
-      const sales=[['Commandes',number(t.orders),'commandes payées'],['Visites site',number(t.site_visits),'sessions Shopify'],['Taux de conversion',t.conversion_rate==null?'-':`${number(t.conversion_rate)} %`,'paiements terminés / sessions Shopify'],['Panier moyen',euro(t.average_order_value),'CA / commandes'],['Ajouts panier',number(t.add_to_carts),'sessions Shopify avec ajout panier']];
+      healthConclusion.innerHTML=`<strong>Lecture globale :</strong> ${longHistoryIncomplete||numeric(t.estimated_result)==null?'Le résultat de cette période ne peut pas être établi avec suffisamment de données.':Number(t.estimated_result)<0?'Les coûts renseignés dépassent les revenus de la période dans ce calcul estimatif.':'Le calcul est positif avec les seuls coûts renseignés ; cela ne confirme pas un bénéfice complet.'} Le MER ne permet pas d'isoler la rentabilité des ventes attribuées à Meta.`;
+      const sales=[['Commandes',number(t.orders),'commandes avec paiements, retours inclus'],['Visites site',number(t.site_visits),'sessions Shopify'],['Taux de conversion',t.conversion_rate==null?'-':`${number(t.conversion_rate)} %`,'paiements terminés / sessions Shopify'],['Panier moyen',euro(t.average_order_value),'CA / commandes'],['Ajouts panier',number(t.add_to_carts),'sessions Shopify avec ajout panier']];
       salesCards.innerHTML=sales.map(cardHtml).join('');
-      salesConclusion.innerHTML=Number(t.orders)>0
-        ? `<strong>Conclusion vente :</strong> Le site génère ${number(t.orders)} commandes avec un panier moyen de ${euro(t.average_order_value)}. Le produit se vend ; le principal frein reste le coût d'acquisition.`
-        : '<strong>Conclusion vente :</strong> Aucune commande payée sur cette période. Il faut d’abord vérifier le trafic et la conversion avant d’évaluer la rentabilité.';
-      const meta=[['Dépenses Meta',euro(t.ad_spend),'sur la période'],['ROAS réel / ROAS cible',`${number(t.blended_roas)} / ${number(t.target_roas)}`,roasNote],['CPA réel / CPA cible',`${euro(t.cpa)} / ${euro(t.target_cpa)}`,mixNote]];
+      salesConclusion.innerHTML=`<strong>Lecture des ventes :</strong> ${numeric(t.orders)==null?'Le nombre de commandes est indisponible.':Number(t.orders)>0?`${number(t.orders)} commandes Shopify avec paiement sont visibles, pour un panier moyen de ${euro(t.average_order_value)}.`:'Aucune commande avec paiement dans les données de la période.'} ${numeric(t.site_visits)==null?'Les sessions Shopify sont indisponibles ; le taux de conversion ne peut pas être évalué.':'Le taux de conversion décrit le parcours Shopify sur la période.'} Ces seuls chiffres n’identifient pas la cause d’une variation des ventes.`;
+      const metaCpa=numeric(t.meta_purchases)>0?t.meta_cpa:null;
+      const meta=[['Dépenses Meta',euro(t.ad_spend),'dépenses déclarées par Meta sur la période'],['ROAS Meta attribué',number(t.meta_roas),'CA attribué déclaré par Meta / dépenses Meta'],['CPA Meta attribué',euro(metaCpa),numeric(t.meta_purchases)===0?'0 achat attribué : CPA non calculable':'dépenses Meta / achats attribués par Meta'],['Achats attribués Meta',number(t.meta_purchases),'attribution Meta, distincte des commandes Shopify'],['CA attribué Meta',euro(t.meta_purchase_value),'valeur de conversion déclarée par Meta'],['MER global',number(t.blended_roas),'CA total Shopify / dépenses Meta ; toutes origines']];
       metaCards.innerHTML=meta.map(cardHtml).join('');
-      const metaBelowTarget=Number(t.blended_roas)<Number(t.target_roas)||Number(t.cpa)>Number(t.target_cpa);
-      metaConclusion.innerHTML=Number(t.ad_spend)<=0
-        ? '<strong>Conclusion Meta Ads :</strong> Aucune dépense Meta sur cette période ; la rentabilité publicitaire ne peut pas être évaluée.'
-        : metaBelowTarget
-          ? `<strong>Conclusion Meta Ads :</strong> Le ROAS réel (${number(t.blended_roas)}) reste sous la cible (${number(t.target_roas)}) et le CPA (${euro(t.cpa)}) dépasse la cible (${euro(t.target_cpa)}). Il faut réduire le coût d'acquisition avant de relancer à grande échelle.`
-          : '<strong>Conclusion Meta Ads :</strong> Le ROAS et le CPA sont dans les objectifs. Les campagnes peuvent être développées progressivement en surveillant la marge.';
-      marginProfiles.innerHTML=(d.margin_profiles||[]).map(p=>{
-        const isFrance=p.label==='T-shirt France';
-        const isTurkey=p.label==='T-shirt Turquie';
-        const isAsia=p.label==='T-shirt Asie';
-        const cardClass=isFrance?' retired':(isTurkey?' highlight':'');
-        const status=isAsia?'<span class="margin-status">Sample commandé</span>':'';
-        const geremyDeal=p.geremy_profit_deal||{};
-        const geremyDealHtml=isAsia&&geremyDeal.projected_result!=null
-          ? `<div class="projection alt"><small>Nouveau deal Geremy : 20 % du profit Meta</small><strong class="${geremyDeal.projected_result>=0?'positive':'negative'}">${euro(geremyDeal.projected_result)}</strong><small>commission estimée Geremy : ${euro(geremyDeal.commission)} sur la période</small></div>`
-          : '';
-        return `<div class="margin-item${cardClass}"><span class="eyebrow">${esc(p.label)}</span><strong>${number(Number(p.margin_rate)*100)} %</strong><small>${esc(p.shipping)}</small>${status}<div class="projection"><small>Résultat projeté sur la période</small><strong class="${p.projected_result>=0?'positive':'negative'}">${euro(p.projected_result)}</strong><small>si tout le CA était à cette marge</small></div>${geremyDealHtml}</div>`;
-      }).join('');
-      table('campaigns',['Campagne','Dépenses','Achats attribués','CA attribué','ROAS','CPA'],d.campaign_performance.map(r=>`<tr><td>${esc(r.campaign)}</td><td>${euro(r.spend)}</td><td>${number(r.purchases)}</td><td>${euro(r.purchase_value)}</td><td>${number(r.roas)}</td><td>${euro(r.cpa)}</td></tr>`));
+      metaConclusion.innerHTML=`<strong>Lecture Meta :</strong> ${numeric(t.ad_spend)==null?'La source Meta est indisponible ; ne pas interpréter cette absence comme une dépense nulle.':Number(t.ad_spend)===0?'Aucune dépense Meta déclarée : les ratios sont indisponibles.':numeric(t.meta_purchases)==null?'Les achats attribués sont indisponibles : aucun CPA attribué ne peut être établi.':numeric(t.meta_purchases)===0?'Meta ne déclare aucun achat attribué ; le CPA n’est pas calculable.':`Meta déclare ${number(t.meta_purchases)} achat(s), avec un ROAS attribué de ${number(t.meta_roas)} et un CPA attribué de ${euro(metaCpa)}.`} Les marges, frais d’expédition, commissions et limites d’attribution doivent être confirmés pour évaluer une rentabilité.`;
+      const cost=d.cost_assumptions||{};
+      const components=cost.unit_components||{};
+      const componentLabels={urssaf:'URSSAF déclarée',production:'Fabrication',fees:'Frais',packaging:'Emballage'};
+      const shipping=cost.shipping_options||{};
+      const referenceShipping=shipping[cost.reference_shipping]||{};
+      const costCards=[['Prix de référence',euro(cost.reference_price),cost.label||'référence non renseignée'],['Coûts unitaires connus',euro(cost.known_unit_cost),Object.entries(components).map(([key,value])=>`${componentLabels[key]||key} : ${euro(value)}`).join(' · ')||'coûts non renseignés'],[numeric(cost.contribution_after_shipping)!=null?'Marge après Mondial Relay':'Marge avant expédition',euro(cost.contribution_after_shipping??cost.contribution_before_shipping),numeric(cost.contribution_after_shipping)!=null?`${euro(cost.contribution_before_shipping)} avant livraison − ${euro(referenceShipping.cost??cost.shipping_cost)} de transport ; avant publicité, commission et charges fixes`:'maximum avant expédition, publicité, commission et charges fixes']];
+      if(shipping.home){
+        const homeMargin=[cost.contribution_before_shipping,shipping.home.customer_charge,shipping.home.cost].every(value=>numeric(value)!=null)?Number(cost.contribution_before_shipping)+Number(shipping.home.customer_charge)-Number(shipping.home.cost):null;
+        costCards.push(['Marge avec livraison domicile',euro(homeMargin),homeMargin==null?'coût transport non confirmé ; calcul indisponible':`${euro(cost.contribution_before_shipping)} avant livraison + ${euro(shipping.home.customer_charge)} facturés − ${euro(shipping.home.cost)} de transport ; avant publicité, commission et charges fixes`]);
+      }
+      costAssumptions.innerHTML=costCards.map(([label,value,note])=>`<div class="margin-item"><span class="eyebrow">${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note)}</small></div>`).join('');
+      const commissionStatus=t.geremy_commission_status==='unconfirmed'?'Commission Geremy non confirmée : aucun accord ni montant dû n’est établi.':numeric(t.geremy_commission)==null?'Commission Geremy indisponible.':`Commission Geremy prise en compte : ${euro(t.geremy_commission)}.`;
+      const breakEven=numeric(cost.break_even_roas??cost.break_even_roas_before_shipping);
+      const shippingNote=shipping.mondial_relay?`Mondial Relay : ${euro(shipping.mondial_relay.cost)} de coût, ${euro(shipping.mondial_relay.customer_charge)} facturé au client. Livraison à domicile : ${euro(shipping.home?.customer_charge)} facturés au client, coût transport ${numeric(shipping.home?.cost)==null?'non confirmé':euro(shipping.home.cost)}.`:`Expédition : ${numeric(cost.shipping_cost)==null?'coût non confirmé':euro(cost.shipping_cost)}.`;
+      costConclusion.innerHTML=`<strong>Limites du calcul :</strong> ${cost.reported_at?`Hypothèse déclarée le ${esc(dateLabel(cost.reported_at))}${cost.effective_from?`, applicable à partir du ${esc(dateLabel(cost.effective_from))}`:''}. `:''}${esc(shippingNote)} ${breakEven==null?'Seuil publicitaire non établi.':`Seuil théorique minimal ${numeric(cost.break_even_roas)!=null?'après la livraison de référence':'avant expédition'} : ${number(breakEven)} de ROAS, avant commission et charges fixes ; ce n’est pas un objectif de rentabilité complète.`} ${esc(commissionStatus)} ${cost.historical_costs_verified===true?'':'Les coûts historiques ne sont pas confirmés ; la marge actuelle ne doit pas être appliquée automatiquement aux anciennes commandes.'} ${(cost.notes||[]).map(esc).join(' ')}`;
+      const campaignRows=d.campaign_performance||[];
+      const scopeLabel={geremy_confirmed:'Geremy confirmé',personal_confirmed:'Gestion Enzo confirmée',unconfirmed:'Responsable non confirmé'};
+      table('campaigns',['Campagne','Périmètre','Dépenses','Achats attribués','CA attribué','ROAS Meta','CPA Meta'],campaignRows.length?campaignRows.map(r=>`<tr><td>${esc(r.campaign)}</td><td>${esc(scopeLabel[r.scope]||'Responsable non confirmé')}</td><td>${euro(r.spend)}</td><td>${number(r.purchases)}</td><td>${euro(r.purchase_value)}</td><td>${number(r.roas)}</td><td>${euro(numeric(r.purchases)>0?r.cpa:null)}</td></tr>`):['<tr><td colspan="7">Aucune donnée de campagne disponible pour cette période.</td></tr>']);
       const affiliate=d.affiliate||{totals:{},influencers:[]};
       const affiliateTotals=affiliate.totals||{};
       const affiliateRows=affiliate.influencers||[];
-      const affiliateNet=Number(affiliateTotals.net_result)||0;
+      const affiliateNet=numeric(affiliateTotals.net_result);
       const affiliateSummary=[
-        ['Coût Favikon période',euro(affiliateTotals.favikon_period_cost||0),`${euro(affiliateTotals.favikon_monthly_cost||0)} / mois`,-(affiliateTotals.favikon_period_cost||0)],
-        ['Résultat net affiliation',euro(affiliateNet),'après commissions, produits envoyés et Favikon',affiliateNet],
-        ['Influenceurs rentables',`${number(affiliateTotals.profitable_count||0)} / ${number(affiliateRows.length)}`,'triés par résultat net'],
-        ['Ventes affiliées',number(affiliateTotals.orders||0),`${euro(affiliateTotals.revenue||0)} de CA tracké`]
+        ['Coût Favikon estimé',euro(affiliateTotals.favikon_period_cost),`${euro(affiliateTotals.favikon_monthly_cost)} / mois configurés`],
+        ['Résultat affiliation estimé',euro(affiliateNet),'coûts renseignés : commissions, produits envoyés et Favikon',affiliateNet],
+        ['Estimations positives',`${number(affiliateTotals.profitable_count)} / ${number(affiliateRows.length)}`,'selon les coûts et ventes suivis'],
+        ['Ventes affiliées suivies',number(affiliateTotals.orders),`${euro(affiliateTotals.revenue)} de CA suivi par codes`]
       ];
       affiliateCards.innerHTML=affiliateSummary.map(cardHtml).join('');
       const emptyAffiliate='<tr><td colspan="10">Aucun influenceur renseigné pour l instant. Crée un code Shopify par influenceur puis ajoute-le dans la configuration affiliation.</td></tr>';
-      table('affiliateInfluencers',['Influenceur','Codes','Ventes','CA','Marge','Commission','Produits envoyés','Part Favikon','Résultat net','Statut'],affiliateRows.length?affiliateRows.map(r=>`<tr><td>${esc(r.name)}${r.handle?`<br><small>${esc(r.handle)}</small>`:''}</td><td>${esc((r.codes||[]).join(', '))}</td><td>${number(r.orders)}</td><td>${euro(r.revenue)}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.commission_due)}</td><td>${euro(r.seed_total_cost)}<br><small>${number(r.seeded_units)} tee-shirt(s)</small></td><td>${euro(r.favikon_share)}</td><td class="${r.net_result>=0?'positive':'negative'}">${euro(r.net_result)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td></tr>`):[emptyAffiliate]);
+      table('affiliateInfluencers',['Influenceur','Codes','Ventes','CA','Marge estimée','Commission configurée','Produits envoyés','Part Favikon','Résultat estimé','Lecture estimative'],affiliateRows.length?affiliateRows.map(r=>`<tr><td>${esc(r.name)}${r.handle?`<br><small>${esc(r.handle)}</small>`:''}</td><td>${esc((r.codes||[]).join(', '))}</td><td>${number(r.orders)}</td><td>${euro(r.revenue)}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.commission_due)}</td><td>${euro(r.seed_total_cost)}<br><small>${number(r.seeded_units)} tee-shirt(s)</small></td><td>${euro(r.favikon_share)}</td><td class="${tone(r.net_result)}">${euro(r.net_result)}</td><td><span class="pill">${numeric(r.net_result)==null?'Indisponible':Number(r.net_result)>=0?'Estimation positive':'Estimation négative'}</span></td></tr>`):[emptyAffiliate]);
       affiliateConclusion.innerHTML=affiliateRows.length
-        ? affiliateNet>=0
-          ? `<strong>Conclusion affiliation :</strong> Le canal est rentable sur la période avec ${euro(affiliateNet)} net après Favikon. Les profils en haut du tableau méritent d être relancés en priorité.`
-          : `<strong>Conclusion affiliation :</strong> Le canal est en perte de ${euro(Math.abs(affiliateNet))} sur la période après Favikon. Il faut couper les profils qui ne génèrent pas au moins 2 à 3 ventes après envoi produit.`
-        : '<strong>Conclusion affiliation :</strong> Le suivi est prêt, mais aucun influenceur n est encore renseigné. La prochaine étape est de créer des codes promo uniques dans Shopify et d ajouter les profils testés.';
-      available.textContent=d.stock_totals.available; incoming.textContent=d.stock_totals.incoming;
-      const monthlyFixed=Object.values(d.fixed_costs_monthly).reduce((sum,value)=>sum+Number(value),0); dailyFixed.textContent=euro(monthlyFixed/30.4375);
-      const sum=(rows,key)=>rows.reduce((total,row)=>total+(Number(row[key])||0),0);
-      const trendSource=(d.trend_history?.daily||d.daily);
+        ? `<strong>Lecture affiliation :</strong> Résultat estimé : ${euro(affiliateNet)} avec les coûts configurés et les ventes retrouvées via les codes. Confirmer les accords, envois et coûts avant de conclure sur la rentabilité d'un profil.`
+        : '<strong>Lecture affiliation :</strong> Aucun influenceur renseigné. Le suivi ne permet pas encore de mesurer la performance de ce canal.';
+      available.textContent=number(d.stock_totals?.available); incoming.textContent=number(d.stock_totals?.incoming);
+      const physicalStockDate=d.physical_stock_snapshot_at||d.stock_snapshot_at;
+      stockFreshness.textContent=`${d.stock_as_of?`Stock calculé au ${dateLabel(d.stock_as_of)}, indépendant de la période sélectionnée.`:'Date de calcul du stock inconnue.'} ${physicalStockDate?`Inventaire physique de référence : ${dateLabel(String(physicalStockDate).slice(0,10))}.`:'Date de l’inventaire physique inconnue.'} ${d.data_freshness?.stock_generated_at?`Données stock assemblées le ${timestampLabel(d.data_freshness.stock_generated_at)}.`:''}`;
+      const monthlyCosts=Object.values(d.fixed_costs_monthly||{});
+      const fixedMetadata=d.fixed_costs_metadata||{};
+      const monthlyFixed=numeric(fixedMetadata.other_monthly_amount)!=null&&numeric(fixedMetadata.favikon_monthly_amount)!=null?Number(fixedMetadata.other_monthly_amount)+Number(fixedMetadata.favikon_monthly_amount):monthlyCosts.length&&monthlyCosts.every(value=>numeric(value)!=null)?monthlyCosts.reduce((sum,value)=>sum+Number(value),0):null;
+      dailyFixed.textContent=euro(monthlyFixed==null?null:monthlyFixed/30.4375);
+      const trendSource=(d.trend_history?.daily||d.daily||[]);
       const trendMonths=aggregateMonthly(trendSource);
-      const activeMonths=trendMonths.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
-      const trendRevenue=sum(trendMonths,'revenue');
-      const trendMargin=sum(trendMonths,'contribution_margin');
-      const trendMeta=sum(trendMonths,'ad_spend');
-      const trendGap=trendMargin-trendMeta;
-      const goodMonths=trendMonths.filter(r=>Number(r.contribution_margin)>Number(r.ad_spend)).length;
-      const bestMonth=[...activeMonths].sort((a,b)=>((Number(b.contribution_margin)||0)-(Number(b.ad_spend)||0))-((Number(a.contribution_margin)||0)-(Number(a.ad_spend)||0)))[0];
-      const weakMonth=[...activeMonths].sort((a,b)=>((Number(a.contribution_margin)||0)-(Number(a.ad_spend)||0))-((Number(b.contribution_margin)||0)-(Number(b.ad_spend)||0)))[0];
+      const activeMonths=trendMonths.filter(r=>numeric(r.contribution_margin)!=null&&numeric(r.ad_spend)!=null&&(Number(r.revenue)>0||Number(r.ad_spend)>0));
+      const trendRevenue=totalKnown(trendMonths,'revenue');
+      const trendMargin=totalKnown(trendMonths,'contribution_margin');
+      const trendMeta=totalKnown(trendMonths,'ad_spend');
+      const trendGap=trendMargin==null||trendMeta==null?null:trendMargin-trendMeta;
+      const monthGap=row=>row.contribution_margin-row.ad_spend;
+      const bestMonth=[...activeMonths].sort((a,b)=>monthGap(b)-monthGap(a))[0];
+      const weakMonth=[...activeMonths].sort((a,b)=>monthGap(a)-monthGap(b))[0];
       trendCards.innerHTML=[
-        ['CA 24 mois',euro(trendRevenue),`${trendMonths[0]?.date||'-'} → ${trendMonths.at(-1)?.date||'-'}`,trendRevenue],
-        ['Marge − Meta',euro(trendGap),`${euro(trendMargin)} marge · ${euro(trendMeta)} Meta`,trendGap],
-        ['Meilleur mois',bestMonth?euro((Number(bestMonth.contribution_margin)||0)-(Number(bestMonth.ad_spend)||0)):'-',bestMonth?`${bestMonth.date} · ${euro(bestMonth.revenue)} CA`:'aucune activité',bestMonth?(Number(bestMonth.contribution_margin)||0)-(Number(bestMonth.ad_spend)||0):null],
-        ['Point faible',weakMonth?euro((Number(weakMonth.contribution_margin)||0)-(Number(weakMonth.ad_spend)||0)):'-',weakMonth?`${weakMonth.date} · ${euro(weakMonth.ad_spend)} Meta`:'aucune activité',weakMonth?(Number(weakMonth.contribution_margin)||0)-(Number(weakMonth.ad_spend)||0):null]
+        ['CA historique disponible',euro(trendRevenue),`${trendMonths[0]?.date||'-'} → ${trendMonths.at(-1)?.date||'-'}`,trendRevenue],
+        ['Marge estimée − Meta',euro(trendGap),`${euro(trendMargin)} marge estimée · ${euro(trendMeta)} Meta`,trendGap],
+        ['Écart mensuel maximal',bestMonth?euro(monthGap(bestMonth)):'Indisponible',bestMonth?`${bestMonth.date} · marge estimée − Meta`:'aucun mois calculable',bestMonth?monthGap(bestMonth):null],
+        ['Écart mensuel minimal',weakMonth?euro(monthGap(weakMonth)):'Indisponible',weakMonth?`${weakMonth.date} · marge estimée − Meta`:'aucun mois calculable',weakMonth?monthGap(weakMonth):null]
       ].map(([label,value,note,signal])=>`<div class="trend-card"><span class="eyebrow">${esc(label)}</span><strong class="${signal==null?'':(signal>=0?'positive':'negative')}">${esc(value)}</strong><small>${esc(note)}</small></div>`).join('');
-      chartInsight.innerHTML=trendGap<0
-        ? `<strong>Lecture graphique :</strong> sur les 24 derniers mois, les coûts Meta dépassent la marge de ${euro(Math.abs(trendGap))}. Le mois le plus faible est ${weakMonth?`${weakMonth.date} (${euro((Number(weakMonth.contribution_margin)||0)-(Number(weakMonth.ad_spend)||0))})`:'non identifiable'}.`
-        : `<strong>Lecture graphique :</strong> sur les 24 derniers mois, la marge couvre Meta avec ${euro(trendGap)} d'avance. Le meilleur mois est ${bestMonth?`${bestMonth.date} (${euro((Number(bestMonth.contribution_margin)||0)-(Number(bestMonth.ad_spend)||0))})`:'non identifiable'}.`;
-      renderAiCoach(d, trendMonths);
-      warnings.innerHTML=d.warnings.map(w=>`<li>${esc(w)}</li>`).join('');
+      chartInsight.innerHTML=`<strong>Lecture graphique :</strong> ${trendGap==null?'Des valeurs manquent : le total marge estimée moins Meta ne peut pas être établi.':`L'écart entre marge estimée et dépenses Meta est de ${euro(trendGap)} sur les données affichées.`} Ce solde précède les autres charges et commissions. La couverture des sources et les coûts historiques limitent la comparaison des mois.`;
+      renderDataReading(d);
+      const notices=[...(d.warnings||[])];
+      if(!cumulativeComplete)notices.unshift(cumulativeNote);
+      if(cost.historical_costs_verified!==true)notices.push('Coûts historiques non confirmés : marges et résultats affichés sont des estimations.');
+      if(numeric(cost.shipping_cost)==null)notices.push('Frais d’expédition non confirmés : le résultat estimé peut être surestimé.');
+      if(shipping.home&&numeric(shipping.home.cost)==null)notices.push('Livraison à domicile : montant facturé connu, coût réel du transport encore non confirmé.');
+      if(t.geremy_commission_status==='unconfirmed')notices.push('Accord Geremy non confirmé : aucun montant dû ne peut être affirmé et aucune commission inconnue ne doit être assimilée à 0 €.');
+      if(d.fixed_costs_metadata?.status==='unverified_config')notices.push('Charges fixes issues de la configuration : abonnements et montants actuels à confirmer.');
+      warnings.innerHTML=[...new Set(notices)].map(w=>`<li>${esc(w)}</li>`).join('');
       drawChart(trendMonths);
-      table('stock',['Produit','Taille / couleur','Origine','Statut','Initial','Restant','Shopify'],d.stock.map(r=>`<tr><td>${esc(r.product)}</td><td>${esc(r.variant)}</td><td>${esc(r.origin)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td><td>${r.initial}</td><td>${r.remaining}</td><td>${r.shopify_quantity??'non lie'}</td></tr>`));
-      table('orders',['Commande','Date','CA','Couts','Marge','Articles'],d.orders.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${euro(r.variable_costs)}</td><td class="${r.margin>=0?'positive':'negative'}">${euro(r.margin)}</td><td>${r.units}</td></tr>`));
-      table('daily',['Date','CA','Commandes','Marge','Meta','Geremy','URSSAF','ROAS reel','ROAS Meta','Resultat'],[...d.daily].reverse().map(r=>`<tr><td>${r.date}</td><td>${euro(r.revenue)}</td><td>${r.orders}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.ad_spend)}</td><td>${euro(r.geremy_commission)}</td><td>${euro(r.urssaf_estimated)}</td><td>${number(r.blended_roas)}</td><td>${number(r.meta_roas)}</td><td class="${r.estimated_result>=0?'positive':'negative'}">${euro(r.estimated_result)}</td></tr>`));
+      table('stock',['Produit','Taille / couleur','Origine','Statut','Initial','Restant','Shopify'],(d.stock||[]).map(r=>`<tr><td>${esc(r.product)}</td><td>${esc(r.variant)}</td><td>${esc(r.origin)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td><td>${number(r.initial)}</td><td>${number(r.remaining)}</td><td>${r.shopify_quantity==null?'Non lié':number(r.shopify_quantity)}</td></tr>`));
+      table('orders',['Commande','Date','CA','Coûts estimés','Marge estimée','Articles'],(d.orders||[]).map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${euro(r.variable_costs)}</td><td class="${tone(r.margin)}">${euro(r.margin)}</td><td>${number(r.units)}</td></tr>`));
+      table('daily',['Date','CA','Commandes','Marge estimée','Meta','Geremy','URSSAF estimée','MER global','ROAS Meta','Résultat estimé'],[...(d.daily||[])].reverse().map(r=>`<tr><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${number(r.orders)}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.ad_spend)}</td><td>${euro(r.geremy_commission)}</td><td>${euro(r.urssaf_estimated)}</td><td>${number(r.blended_roas)}</td><td>${number(r.meta_roas)}</td><td class="${tone(r.estimated_result)}">${euro(r.estimated_result)}</td></tr>`));
     }
     async function load(force=false) {
       error.hidden=true; refresh.disabled=true; refresh.textContent='Chargement...';

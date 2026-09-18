@@ -17,6 +17,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from financials import business_banking, current_cost_reference, dated_unit_model, normalize_config
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
@@ -86,8 +89,10 @@ def request_json(
         with urllib.request.urlopen(request, timeout=45) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"HTTP {exc.code} from {url}: {detail[:800]}") from exc
+        host = urllib.parse.urlparse(url).hostname or "connecteur"
+        raise RuntimeError(f"Le connecteur {host} a répondu HTTP {exc.code}.") from None
+    except (urllib.error.URLError, TimeoutError):
+        raise RuntimeError("Un connecteur n'a pas répondu. Les données ne sont pas actualisées.") from None
 
 
 class ShopifyClient:
@@ -133,7 +138,7 @@ class ShopifyClient:
     def fetch_catalog(self) -> dict[str, Any]:
         query = """
         query Catalog($after: String) {
-          shop { name currencyCode }
+          shop { name currencyCode ianaTimezone }
           locations(first: 20) { nodes { id name } }
           products(first: 20, after: $after) {
             pageInfo { hasNextPage endCursor }
@@ -167,15 +172,17 @@ class ShopifyClient:
           orders(first: 20, after: $after, query: $search, sortKey: CREATED_AT) {
             pageInfo { hasNextPage endCursor }
             nodes {
-              id name createdAt updatedAt cancelledAt displayFinancialStatus
+              id name createdAt updatedAt cancelledAt displayFinancialStatus displayFulfillmentStatus
               currentTotalPriceSet { shopMoney { amount currencyCode } }
               currentSubtotalPriceSet { shopMoney { amount currencyCode } }
               currentTotalDiscountsSet { shopMoney { amount currencyCode } }
               currentShippingPriceSet { shopMoney { amount currencyCode } }
               totalRefundedSet { shopMoney { amount currencyCode } }
+              netPaymentSet { shopMoney { amount currencyCode } }
               discountCodes
               shippingLines(first: 10) { nodes { title } }
               lineItems(first: 20) {
+                pageInfo { hasNextPage endCursor }
                 nodes {
                   id title quantity currentQuantity sku
                   originalUnitPriceSet { shopMoney { amount currencyCode } }
@@ -189,9 +196,12 @@ class ShopifyClient:
         """
         after = None
         orders: list[dict[str, Any]] = []
+        # Fetch an extra day on each side. Build applies the exact shop-local
+        # boundaries; an unqualified Shopify date search can otherwise lose
+        # orders placed around local midnight.
         search = (
-            f"created_at:>={since.isoformat()} "
-            f"created_at:<{(until + timedelta(days=1)).isoformat()}"
+            f"created_at:>={(since - timedelta(days=1)).isoformat()} "
+            f"created_at:<{(until + timedelta(days=2)).isoformat()}"
         )
         while True:
             data = self.graphql(query, {"after": after, "search": search})
@@ -201,6 +211,28 @@ class ShopifyClient:
             if not page["hasNextPage"]:
                 break
             after = page["endCursor"]
+        for order in orders:
+            page = order["lineItems"].get("pageInfo") or {}
+            while page.get("hasNextPage"):
+                result = self.graphql("""
+                query MoreOrderLines($id: ID!, $after: String!) {
+                  order(id: $id) {
+                    lineItems(first: 100, after: $after) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        id title quantity currentQuantity sku
+                        originalUnitPriceSet { shopMoney { amount currencyCode } }
+                        discountedTotalSet { shopMoney { amount currencyCode } }
+                        variant { id title sku product { id title handle } }
+                      }
+                    }
+                  }
+                }
+                """, {"id": order["id"], "after": page["endCursor"]})
+                connection = result["order"]["lineItems"]
+                order["lineItems"]["nodes"].extend(connection["nodes"])
+                page = connection["pageInfo"]
+                order["lineItems"]["pageInfo"] = page
         return orders
 
     def fetch_analytics(self, since: date, until: date) -> dict[str, int]:
@@ -221,7 +253,12 @@ class ShopifyClient:
         if data.get("parseErrors"):
             raise RuntimeError(f"ShopifyQL error: {data['parseErrors']}")
         rows = (data.get("tableData") or {}).get("rows") or []
-        row = rows[0] if rows else {}
+        if not rows:
+            raise RuntimeError("Shopify Analytics returned no aggregate row")
+        row = rows[0]
+        required = ("sessions", "sessions_with_cart_additions", "sessions_that_completed_checkout")
+        if not isinstance(row, dict) or any(row.get(key) is None for key in required):
+            raise RuntimeError("Shopify Analytics returned incomplete aggregate metrics")
         return {
             "sessions": int(row.get("sessions") or 0),
             "cart_additions": int(row.get("sessions_with_cart_additions") or 0),
@@ -270,21 +307,12 @@ class BridgeClient:
     def token(self) -> str:
         if self._token and time.time() < self._expires_at - 120:
             return self._token
-        try:
-            result = request_json(
-                f"{self.base_url}/authorization/token",
-                method="POST",
-                headers=self.headers(),
-                payload={"external_user_id": self.external_user_id},
-            )
-        except RuntimeError:
-            self.ensure_user()
-            result = request_json(
-                f"{self.base_url}/authorization/token",
-                method="POST",
-                headers=self.headers(),
-                payload={"external_user_id": self.external_user_id},
-            )
+        result = request_json(
+            f"{self.base_url}/authorization/token",
+            method="POST",
+            headers=self.headers(),
+            payload={"external_user_id": self.external_user_id},
+        )
         self._token = result["access_token"]
         expires_at = result.get("expires_at")
         if expires_at:
@@ -312,7 +340,10 @@ class BridgeClient:
             "environment": self.environment,
             "external_user_id": self.external_user_id,
             "accounts": self.list_resources("accounts", limit=100),
-            "transactions": self.list_resources("transactions", limit=20),
+            "transactions": self.list_resources("transactions", limit=20)
+            if os.environ.get("BRIDGE_SHOW_TRANSACTIONS", "").lower() in {"1", "true", "yes"}
+            and os.environ.get("PUBLIC_DEPLOYMENT", "").lower() not in {"1", "true", "yes"}
+            else [],
         }
 
 
@@ -332,7 +363,7 @@ class PowensClient:
             "1",
             "true",
             "yes",
-        }
+        } and os.environ.get("PUBLIC_DEPLOYMENT", "").lower() not in {"1", "true", "yes"}
         self._token = ""
 
     @property
@@ -434,7 +465,7 @@ class MetaClient:
                 "action_values",
             ]
         if level == "campaign":
-            field_names.append("campaign_name")
+            field_names.extend(("campaign_id", "campaign_name"))
         params = {
                 "fields": ",".join(field_names),
                 "level": level,
@@ -453,7 +484,9 @@ class MetaClient:
         headers = {"Authorization": f"Bearer {self.token}"}
         while url:
             result = request_json(url, headers=headers)
-            rows.extend(result.get("data", []))
+            if result.get("error") or not isinstance(result.get("data"), list):
+                raise RuntimeError("Meta returned an invalid insights response")
+            rows.extend(result["data"])
             url = result.get("paging", {}).get("next")
         if campaign_names:
             allowed = set(campaign_names)
@@ -504,8 +537,14 @@ def prorated_monthly_cost(
     effective_until = min(until, date.fromisoformat(ends_at)) if ends_at else until
     if effective_until < effective_since:
         return 0.0
-    period_days = (effective_until - effective_since).days + 1
-    return round(amount * period_days / 30.4375, 2)
+    total = 0.0
+    cursor = effective_since
+    while cursor <= effective_until:
+        days_in_month = calendar.monthrange(cursor.year, cursor.month)[1]
+        segment_until = min(effective_until, cursor.replace(day=days_in_month))
+        total += amount * ((segment_until - cursor).days + 1) / days_in_month
+        cursor = segment_until + timedelta(days=1)
+    return round(total, 2)
 
 
 @dataclass
@@ -591,8 +630,15 @@ class CostEngine:
         units = 0
         allocations: list[dict[str, Any]] = []
         has_sweatshirt = False
+        cost_bases: set[str] = set()
+        current_reference_used = False
+        has_adjusted_quantities = False
         for line in order.get("lineItems", {}).get("nodes", []):
             quantity = int(line.get("currentQuantity") or 0)
+            original_quantity = int(line.get("quantity") or quantity)
+            if original_quantity > quantity:
+                has_adjusted_quantities = True
+                quantity = original_quantity
             unit_price = money(
                 (line.get("originalUnitPriceSet") or {}).get("shopMoney", {}).get("amount")
             )
@@ -602,7 +648,9 @@ class CostEngine:
             units += quantity
             for _ in range(quantity):
                 allocation = self.allocate(line, created_at)
-                model = self.config["cost_models"][allocation.model_name]
+                model, cost_basis = dated_unit_model(self.config, allocation.model_name, created_at, unit_price)
+                cost_bases.add(cost_basis)
+                current_reference_used = current_reference_used or cost_basis == "current_reported"
                 item_cost += sum(money(value) for value in model.values())
                 for component, value in model.items():
                     breakdown[component] += money(value)
@@ -614,9 +662,22 @@ class CostEngine:
                         "origin": allocation.origin,
                         "lot_id": allocation.lot_id,
                         "cost_model": allocation.model_name,
+                        "cost_basis": cost_basis,
                     }
                 )
         shipping = self.shipping_cost(order, has_sweatshirt) if units else 0.0
+        shipping_status = "historical_estimate"
+        if current_reference_used:
+            ref = current_cost_reference(self.config)
+            shipping_title = " ".join(line.get("title", "") for line in order.get("shippingLines", {}).get("nodes", [])).lower()
+            delivery = "mondial_relay" if ("mondial" in shipping_title or "relay" in shipping_title or "relais" in shipping_title) else "home" if ("domicile" in shipping_title or "colissimo" in shipping_title) else None
+            option = ref["shipping_options"].get(delivery, {})
+            shipping_status = option.get("status", "unconfirmed")
+            shipping = money(option.get("cost")) if shipping_status == "confirmed" else 0.0
+            if shipping_status != "confirmed":
+                self.warnings.append("Transport d'une commande au coût actuel non confirmé : la marge affichée exclut ce coût inconnu.")
+        if has_adjusted_quantities:
+            self.warnings.append("Retour/remboursement : coûts initiaux conservés par prudence ; récupération des produits et frais à rapprocher des justificatifs.")
         breakdown["shipping"] += shipping
         return {
             "items": round(item_cost, 2),
@@ -625,6 +686,10 @@ class CostEngine:
             "units": units,
             "allocations": allocations,
             "breakdown": {key: round(value, 2) for key, value in breakdown.items()},
+            "cost_bases": sorted(cost_bases),
+            "shipping_status": shipping_status,
+            "refund_costs_unverified": has_adjusted_quantities,
+            "is_estimate": True,
         }
 
     def stock_summary(self, catalog: dict[str, Any]) -> list[dict[str, Any]]:
@@ -667,23 +732,76 @@ class DashboardBuilder:
     ) -> dict[str, Any]:
         catalog = self.shopify.fetch_catalog()
         orders = self.shopify.fetch_orders(since, until)
-        shopify_analytics = (
-            self.shopify.fetch_analytics(since, until)
-            if include_analytics
-            else {"sessions": 0, "cart_additions": 0, "completed_checkouts": 0}
-        )
-        meta_rows = self.meta.fetch_daily(since, until)
+        source_warnings: list[str] = []
+        data_status: dict[str, Any] = {}
+        shop_timezone_name = catalog["shop"].get("ianaTimezone") or self.config.get("shop_timezone") or "UTC"
+        try:
+            shop_timezone = ZoneInfo(shop_timezone_name)
+        except ZoneInfoNotFoundError:
+            shop_timezone_name = "UTC"
+            shop_timezone = timezone.utc
+            source_warnings.append("Fuseau boutique indisponible : dates de commande calculees en UTC.")
+
+        def order_day(order: dict[str, Any]) -> str:
+            created = datetime.fromisoformat(order["createdAt"].replace("Z", "+00:00"))
+            return created.astimezone(shop_timezone).date().isoformat()
+
+        orders = [order for order in orders if since.isoformat() <= order_day(order) <= until.isoformat()]
+        data_status["shopify_orders"] = {
+            "status": "available", "checked_at": datetime.now(timezone.utc).isoformat(),
+            "timezone": shop_timezone_name,
+            "basis": "order_created_date_current_value_after_returns",
+            "refund_timing": "restated_on_original_order_date_not_refund_date",
+        }
+        shopify_analytics = {"sessions": None, "cart_additions": None, "completed_checkouts": None}
+        data_status["shopify_analytics"] = {"status": "not_requested", "checked_at": None}
+        if include_analytics:
+            try:
+                shopify_analytics = self.shopify.fetch_analytics(since, until)
+                data_status["shopify_analytics"] = {"status": "available", "checked_at": datetime.now(timezone.utc).isoformat()}
+            except Exception:
+                data_status["shopify_analytics"] = {"status": "unavailable", "checked_at": datetime.now(timezone.utc).isoformat()}
+                source_warnings.append("Shopify Analytics indisponible : visites et conversion inconnues, pas nulles.")
+
+        meta_available_since = meta_history_start()
+        meta_since = max(since, meta_available_since)
+        def fetch_meta(level: str) -> list[dict[str, Any]]:
+            key = "meta_account" if level == "account" else "meta_campaigns"
+            status = {
+                "status": "available" if since >= meta_available_since else "partial",
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "available_since": meta_available_since.isoformat(),
+                "requested_since": since.isoformat(),
+                "effective_since": meta_since.isoformat() if until >= meta_since else None,
+                "date_basis": "Meta ad-account timezone",
+            }
+            if until < meta_since:
+                status["status"] = "unavailable"
+                data_status[key] = status
+                return []
+            try:
+                rows = self.meta.fetch_daily(meta_since, until, level=level)
+            except Exception:
+                status["status"] = "unavailable"
+                rows = []
+                source_warnings.append(f"{key} indisponible : les metriques publicitaires sont inconnues.")
+            data_status[key] = status
+            return rows
+
+        meta_rows = fetch_meta("account")
         geremy_config = self.config.get("geremy", {})
-        geremy_campaigns = geremy_config.get("campaign_names", [])
-        track_all_campaigns = bool(geremy_config.get("track_all_campaigns_after_start"))
-        geremy_rows = self.meta.fetch_daily(
-            since,
-            until,
-            level="campaign",
-            campaign_names=None if track_all_campaigns else geremy_campaigns,
-        )
+        campaign_rows = fetch_meta("campaign")
         engine = CostEngine(self.config)
         engine.resolve_catalog_mappings(catalog)
+        # Reconstruct the lot state before the selected period. Otherwise changing
+        # a date filter silently changes the cost assigned to the same order.
+        snapshot_day = datetime.fromisoformat(self.config["stock_snapshot_at"].replace("Z", "+00:00")).astimezone(shop_timezone).date()
+        if snapshot_day < since:
+            prior_orders = self.shopify.fetch_orders(snapshot_day, since - timedelta(days=1))
+            for prior in sorted(prior_orders, key=lambda order: order["createdAt"]):
+                if (snapshot_day.isoformat() <= order_day(prior) < since.isoformat()
+                    and prior.get("displayFinancialStatus") in {"PAID", "PARTIALLY_PAID", "PARTIALLY_REFUNDED", "REFUNDED"}):
+                    engine.order_cost(prior)
 
         daily: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
@@ -700,12 +818,15 @@ class DashboardBuilder:
                 "urssaf_estimated": 0.0,
                 "geremy_revenue": 0.0,
                 "geremy_commission": 0.0,
+                "refunds_amount": 0.0,
+                "net_payments": 0.0,
                 "business_expenses": 0.0,
                 "site_visits": 0.0,
                 "add_to_carts": 0.0,
             }
         )
         order_details: list[dict[str, Any]] = []
+        missing_payment_days: set[str] = set()
         sold_model_units: dict[str, int] = defaultdict(int)
         affiliate_config = self.config.get("affiliate", {})
         affiliate_index = affiliate_code_index(self.config)
@@ -750,17 +871,25 @@ class DashboardBuilder:
                 "commission_due": 0.0,
             }
 
-        included_statuses = {"PAID", "PARTIALLY_PAID", "PARTIALLY_REFUNDED"}
+        included_statuses = {"PAID", "PARTIALLY_PAID", "PARTIALLY_REFUNDED", "REFUNDED"}
         valid_orders = [
             order
             for order in orders
-            if not order.get("cancelledAt")
-            and order.get("displayFinancialStatus") in included_statuses
+            if order.get("displayFinancialStatus") in included_statuses
         ]
         valid_orders.sort(key=lambda order: order["createdAt"])
         for order in valid_orders:
-            day = iso_date(order["createdAt"])
+            day = order_day(order)
+            if order.get("lineItems", {}).get("pageInfo", {}).get("hasNextPage"):
+                raise RuntimeError("Lignes de commande incompletes : calcul interrompu.")
+            # currentTotalPriceSet already reflects returns/refunds/removals;
+            # subtracting totalRefundedSet again would count refunds twice.
             revenue = money(order["currentTotalPriceSet"]["shopMoney"]["amount"])
+            refunded = money(order.get("totalRefundedSet", {}).get("shopMoney", {}).get("amount"))
+            net_payment_value = order.get("netPaymentSet", {}).get("shopMoney", {}).get("amount")
+            net_payment = money(net_payment_value) if net_payment_value is not None else None
+            if net_payment is None:
+                missing_payment_days.add(day)
             discounts = money(order["currentTotalDiscountsSet"]["shopMoney"]["amount"])
             costs = engine.order_cost(order)
             units = costs["units"]
@@ -778,6 +907,9 @@ class DashboardBuilder:
                     matched_code = code
                     break
             daily[day]["revenue"] += revenue
+            daily[day]["refunds_amount"] += refunded
+            if net_payment is not None:
+                daily[day]["net_payments"] += net_payment
             daily[day]["orders"] += 1
             daily[day]["units"] += units
             daily[day]["variable_costs"] += costs["total"]
@@ -842,6 +974,12 @@ class DashboardBuilder:
                     "name": order["name"],
                     "date": day,
                     "financial_status": order.get("displayFinancialStatus"),
+                    "fulfillment_status": order.get("displayFulfillmentStatus"),
+                    "cancelled_at": order.get("cancelledAt"),
+                    "refunded_amount": refunded,
+                    "net_payment": net_payment,
+                    "revenue_basis": "current_order_value_after_returns",
+                    "costs_estimated": True,
                     "revenue": revenue,
                     "variable_costs": costs["total"],
                     "discount_codes": discount_codes,
@@ -871,26 +1009,36 @@ class DashboardBuilder:
                 ),
             )
 
-        campaign_performance_index: dict[str, dict[str, float]] = defaultdict(
-            lambda: {"spend": 0.0, "purchases": 0.0, "purchase_value": 0.0}
+        managed_ids = {str(value) for value in geremy_config.get("campaign_ids", [])}
+        personal_ids = {str(value) for value in self.config.get("personal_campaign_ids", [])}
+        campaign_performance_index: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {"spend": 0.0, "purchases": 0.0, "purchase_value": 0.0, "campaign_id": None, "campaign": "Campagne sans nom"}
         )
-        for row in geremy_rows:
+        for index, row in enumerate(campaign_rows):
             campaign = row.get("campaign_name") or "Campagne sans nom"
-            campaign_performance_index[campaign]["spend"] += money(row.get("spend"))
-            campaign_performance_index[campaign]["purchases"] += action_value(
+            campaign_id = str(row.get("campaign_id") or "")
+            # Do not merge unrelated campaigns merely because they share a name.
+            campaign_key = campaign_id or f"missing-id-{index}"
+            values = campaign_performance_index[campaign_key]
+            values["campaign_id"] = campaign_id or None
+            values["campaign"] = campaign
+            values["spend"] += money(row.get("spend"))
+            values["purchases"] += action_value(
                 row.get("actions")
             )
-            campaign_performance_index[campaign]["purchase_value"] += action_value(
+            values["purchase_value"] += action_value(
                 row.get("action_values")
             )
         campaign_performance = []
-        for campaign, values in campaign_performance_index.items():
+        for values in campaign_performance_index.values():
             spend = round(values["spend"], 2)
             purchases = round(values["purchases"], 2)
             purchase_value = round(values["purchase_value"], 2)
             campaign_performance.append(
                 {
-                    "campaign": campaign,
+                    "campaign_id": values["campaign_id"],
+                    "campaign": values["campaign"],
+                    "scope": "geremy_confirmed" if values["campaign_id"] in managed_ids else "personal_confirmed" if values["campaign_id"] in personal_ids else "unconfirmed",
                     "spend": spend,
                     "purchases": purchases,
                     "purchase_value": purchase_value,
@@ -900,31 +1048,36 @@ class DashboardBuilder:
             )
         campaign_performance.sort(key=lambda row: row["spend"], reverse=True)
 
-        managed_campaigns = (
-            sorted({row.get("campaign_name") for row in geremy_rows if row.get("campaign_name")})
-            if track_all_campaigns
-            else geremy_campaigns
-        )
+        managed_campaigns = sorted({row["campaign"] for row in campaign_performance if row["campaign_id"] in managed_ids})
         campaign_ranges = []
-        for campaign_name in managed_campaigns:
+        for campaign_id in sorted(managed_ids):
             active_days = sorted(
                 row["date_start"]
-                for row in geremy_rows
-                if row.get("campaign_name") == campaign_name and money(row.get("spend")) > 0
+                for row in campaign_rows
+                if str(row.get("campaign_id")) == campaign_id and money(row.get("spend")) > 0
             )
             if active_days:
                 campaign_ranges.append(
-                    {"campaign": campaign_name, "since": active_days[0], "until": active_days[-1]}
+                    {"campaign_id": campaign_id, "since": active_days[0], "until": active_days[-1]}
                 )
-        commission_rate = float(geremy_config.get("commission_rate", 0.0))
+        geremy_commission_rate = float(geremy_config.get("commission_rate", 0.0))
+        commission_rate = geremy_commission_rate
         mission_started_at = geremy_config.get("mission_started_at", "9999-12-31")
-        for day, row in daily.items():
-            managed = day >= mission_started_at and any(
-                period["since"] <= day <= period["until"] for period in campaign_ranges
-            )
-            if managed:
-                row["geremy_revenue"] = row["revenue"]
-                row["geremy_commission"] = round(row["revenue"] * commission_rate, 2)
+        mission_ended_at = geremy_config.get("mission_ended_at") or "9999-12-31"
+        commission_confirmed = bool(
+            geremy_config.get("commission_scope_confirmed") is True
+            and geremy_config.get("commission_basis") == "meta_attributed_revenue"
+            and managed_ids
+            and data_status["meta_campaigns"]["status"] == "available"
+        )
+        if commission_confirmed:
+            for campaign_row in campaign_rows:
+                day = campaign_row["date_start"]
+                if (str(campaign_row.get("campaign_id")) in managed_ids
+                    and mission_started_at <= day <= mission_ended_at):
+                    attributed_revenue = action_value(campaign_row.get("action_values"))
+                    daily[day]["geremy_revenue"] += attributed_revenue
+                    daily[day]["geremy_commission"] += round(attributed_revenue * geremy_commission_rate, 2)
         manual_expenses = [
             expense
             for expense in self.config.get("business_expenses", [])
@@ -933,13 +1086,46 @@ class DashboardBuilder:
         for expense in manual_expenses:
             daily[expense["date"]]["business_expenses"] += money(expense.get("amount"))
 
-        total_fixed_monthly = round(sum(self.config["monthly_fixed_costs"].values()), 2)
+        configured_fixed_costs = self.config["monthly_fixed_costs"]
+        # Favikon also appears in affiliate profitability. That is an allocation of
+        # the same expense, not a second company expense or an all-history charge.
+        other_fixed_monthly = round(sum(
+            money(amount)
+            for name, amount in configured_fixed_costs.items()
+            if "favikon" not in name.casefold()
+        ), 2)
+        legacy_favikon_monthly = sum(
+            money(amount)
+            for name, amount in configured_fixed_costs.items()
+            if "favikon" in name.casefold()
+        )
+        fixed_favikon_monthly = money(
+            affiliate_config.get("favikon_monthly_cost", legacy_favikon_monthly)
+        )
         business_started_at = date.fromisoformat(self.config["business_started_at"])
         period_days = (until - since).days + 1
         fixed_period_start = max(since, business_started_at)
         fixed_period_days = max(0, (until - fixed_period_start).days + 1)
-        fixed_prorated = round(total_fixed_monthly * fixed_period_days / 30.4375, 2)
-        fixed_daily = total_fixed_monthly / 30.4375
+        fixed_favikon_start = max(
+            business_started_at.isoformat(),
+            affiliate_config.get("favikon_started_at") or business_started_at.isoformat(),
+        )
+
+        def accrued_fixed_costs(through: date) -> float:
+            return round(
+                prorated_monthly_cost(
+                    other_fixed_monthly, since, through,
+                    starts_at=business_started_at.isoformat(),
+                )
+                + prorated_monthly_cost(
+                    fixed_favikon_monthly, since, through,
+                    starts_at=fixed_favikon_start,
+                    ends_at=affiliate_config.get("favikon_ended_at"),
+                ), 2,
+            )
+
+        fixed_prorated = accrued_fixed_costs(until)
+        previous_fixed_accrual = 0.0
         daily_rows = []
         cursor = since
         while cursor <= until:
@@ -948,13 +1134,18 @@ class DashboardBuilder:
             spend = round(row["ad_spend"], 2)
             revenue = round(row["revenue"], 2)
             contribution = round(row["contribution_margin"], 2)
-            daily_fixed_cost = fixed_daily if cursor >= business_started_at else 0.0
+            fixed_accrual = accrued_fixed_costs(cursor)
+            daily_fixed_cost = round(fixed_accrual - previous_fixed_accrual, 2)
+            previous_fixed_accrual = fixed_accrual
             daily_rows.append(
                 {
                     "date": key,
+                    "fixed_costs": daily_fixed_cost,
                     **{k: round(v, 2) if isinstance(v, float) else v for k, v in row.items()},
                     "blended_roas": round(revenue / spend, 2) if spend else None,
                     "meta_roas": round(row["meta_purchase_value"] / spend, 2) if spend else None,
+                    "meta_cpa": round(spend / row["meta_purchases"], 2) if row["meta_purchases"] else None,
+                    "blended_cpa": round(spend / row["orders"], 2) if row["orders"] else None,
                     "estimated_result": round(
                         contribution
                         - spend
@@ -971,6 +1162,8 @@ class DashboardBuilder:
             "revenue": round(sum(row["revenue"] for row in daily_rows), 2),
             "orders": sum(row["orders"] for row in daily_rows),
             "units": sum(row["units"] for row in daily_rows),
+            "refunds_amount": round(sum(row["refunds_amount"] for row in daily_rows), 2),
+            "net_payments": round(sum(row["net_payments"] for row in daily_rows), 2) if all(row["net_payment"] is not None for row in order_details) else None,
             "variable_costs": round(sum(row["variable_costs"] for row in daily_rows), 2),
             "contribution_margin": round(
                 sum(row["contribution_margin"] for row in daily_rows), 2
@@ -1010,7 +1203,11 @@ class DashboardBuilder:
             2,
         )
         totals["geremy_paid"] = geremy_paid
-        totals["geremy_balance_due"] = round(totals["geremy_commission"] - geremy_paid, 2)
+        totals["geremy_commission_status"] = "calculated_from_confirmed_scope" if commission_confirmed else "unconfirmed"
+        totals["geremy_commission_deducted"] = totals["geremy_commission"]
+        totals["geremy_balance_due"] = round(totals["geremy_commission"] - geremy_paid, 2) if commission_confirmed else None
+        totals["geremy_commission_hypothetical_storewide"] = round(totals["revenue"] * geremy_commission_rate, 2)
+        totals["geremy_commission_hypothetical_rate"] = geremy_commission_rate
         totals["urssaf_paid"] = urssaf_paid
         totals["urssaf_balance_due"] = round(totals["urssaf_estimated"] - urssaf_paid, 2)
         totals["business_expenses"] = round(
@@ -1028,16 +1225,21 @@ class DashboardBuilder:
             totals["contribution_margin"]
             - totals["ad_spend"]
             - totals["fixed_costs_prorated"]
-            - totals["geremy_commission"]
+            - totals["geremy_commission_deducted"]
             - totals["business_expenses"],
             2,
         )
-        totals["cpa"] = (
+        totals["blended_cpa"] = (
             round(totals["ad_spend"] / totals["orders"], 2) if totals["orders"] else None
+        )
+        totals["cpa"] = totals["blended_cpa"]  # Legacy alias; never label this Meta CPA.
+        totals["meta_cpa"] = (
+            round(totals["ad_spend"] / totals["meta_purchases"], 2)
+            if totals["meta_purchases"] else None
         )
         targets = self.config.get("kpi_targets", {})
         current_margin_rate = float(self.config.get("current_margin_rate", 0.0))
-        margin_after_geremy = current_margin_rate - commission_rate
+        margin_after_geremy = current_margin_rate - (geremy_commission_rate if commission_confirmed else 0.0)
         target_roas = (
             round(1 / margin_after_geremy, 2) if margin_after_geremy > 0 else None
         )
@@ -1062,7 +1264,7 @@ class DashboardBuilder:
         )
         totals["conversion_rate"] = (
             round(totals["completed_checkouts"] / totals["site_visits"] * 100, 2)
-            if totals["site_visits"]
+            if totals["site_visits"] and totals["completed_checkouts"] is not None
             else None
         )
         tshirt_units = sum(
@@ -1084,7 +1286,13 @@ class DashboardBuilder:
         stock = engine.stock_summary(catalog)
         available = sum(row["remaining"] for row in stock if row["status"] == "available")
         incoming = sum(row["remaining"] for row in stock if row["status"] == "incoming")
-        warnings = sorted(set(engine.warnings))
+        warnings = sorted(set(engine.warnings + source_warnings))
+        if totals["refunds_amount"]:
+            warnings.append("Remboursements rattaches a la date de commande ; couts de retours et recuperation de stock non rapproches.")
+        if not commission_confirmed:
+            warnings.append("Commission Geremy non confirmee : montant du et solde inconnus ; aucune commission hypothetique deduite du resultat partiel.")
+        if data_status["meta_account"]["status"] != "available":
+            warnings.append("Historique Meta incomplet ou indisponible : depense totale et resultat de la periode inconnus.")
         if any(not row["shopify_linked"] for row in stock if row["status"] == "incoming"):
             warnings.append("Turkey incoming lots still need their Shopify product mapping.")
         mismatches = [
@@ -1105,9 +1313,9 @@ class DashboardBuilder:
             warnings.append(
                 "No sample or other manual business expense has been recorded yet."
             )
-        if totals["geremy_balance_due"] < 0:
+        if totals["geremy_balance_due"] is not None and totals["geremy_balance_due"] < 0:
             warnings.append(
-                f"Geremy payment exceeds the 9% calculated commission by "
+                f"Geremy payment exceeds the calculated commission by "
                 f"{abs(totals['geremy_balance_due']):.2f} EUR."
             )
 
@@ -1117,7 +1325,7 @@ class DashboardBuilder:
             profile = deepcopy(configured_profile)
             margin_rate = float(profile.get("margin_rate", 0.0))
             projected_contribution = round(totals["revenue"] * margin_rate, 2)
-            projected_meta_profit = round(projected_contribution - totals["ad_spend"], 2)
+            projected_meta_profit = round(totals["meta_purchase_value"] * margin_rate - totals["ad_spend"], 2)
             geremy_profit_commission = round(
                 max(0.0, projected_meta_profit) * profit_commission_rate,
                 2,
@@ -1132,8 +1340,9 @@ class DashboardBuilder:
                 2,
             )
             profile["geremy_profit_deal"] = {
+                "status": "hypothetical",
                 "rate": profit_commission_rate,
-                "basis": "commission_on_positive_meta_profit",
+                "basis": "hypothetical_commission_on_positive_meta_attributed_profit",
                 "projected_meta_profit": projected_meta_profit,
                 "commission": geremy_profit_commission,
                 "projected_result": round(
@@ -1275,6 +1484,40 @@ class DashboardBuilder:
             "loss_count": sum(1 for row in affiliate_influencers if row["net_result"] < 0),
         }
 
+        # Financial unknowns remain null in the public contract. Arithmetic above
+        # uses the confirmed deduction only; a proposed rate is never a debt.
+        totals["cost_completeness"] = False
+        totals["result_status"] = "partial"
+        totals["estimated_result_basis"] = "configured_historical_cost_estimates"
+        totals["estimated_result_excludes_unconfirmed_commission"] = not commission_confirmed
+        if not commission_confirmed:
+            totals["geremy_revenue"] = None
+            totals["geremy_commission"] = None
+            for row in daily_rows:
+                row["geremy_revenue"] = None
+                row["geremy_commission"] = None
+        if data_status["meta_account"]["status"] != "available":
+            for key in ("ad_spend", "meta_purchases", "meta_purchase_value"):
+                totals[f"{key}_observed"] = totals[key]
+                totals[key] = None
+            for key in ("meta_cpa", "meta_roas", "blended_cpa", "cpa", "blended_roas", "estimated_result"):
+                totals[key] = None
+            totals["result_status"] = "unavailable"
+            for profile in margin_profiles:
+                profile["projected_result"] = None
+                profile["geremy_profit_deal"]["projected_meta_profit"] = None
+                profile["geremy_profit_deal"]["commission"] = None
+                profile["geremy_profit_deal"]["projected_result"] = None
+        for row in daily_rows:
+            if row["date"] in missing_payment_days:
+                row["net_payments"] = None
+            row["meta_landing_page_views"] = row["site_visits"]
+            row["meta_add_to_carts"] = row["add_to_carts"]
+            if (data_status["meta_account"]["status"] == "unavailable"
+                or row["date"] < meta_available_since.isoformat()):
+                for key in ("ad_spend", "meta_purchases", "meta_purchase_value", "impressions", "clicks", "site_visits", "add_to_carts", "meta_landing_page_views", "meta_add_to_carts", "meta_cpa", "meta_roas", "blended_cpa", "blended_roas", "estimated_result"):
+                    row[key] = None
+
         legacy_bank_account = self.config.get("bank_account", {})
         bank_accounts = deepcopy(self.config.get("bank_accounts", []))
         bank_transactions: list[dict[str, Any]] = []
@@ -1301,7 +1544,7 @@ class DashboardBuilder:
             os.environ.get("BRIDGE_SHOW_TRANSACTIONS", "").lower()
             in {"1", "true", "yes"}
         ) or not public_deployment
-        if self.powens.enabled:
+        if self.powens.enabled and self.powens.environment != "sandbox":
             try:
                 powens_snapshot = self.powens.snapshot()
                 powens_accounts = powens_snapshot["accounts"]
@@ -1392,7 +1635,7 @@ class DashboardBuilder:
             except Exception as exc:
                 powens_status["error"] = str(exc)[:240]
                 warnings.append(f"Powens banking sync failed: {powens_status['error']}")
-        if not powens_status.get("connected") and self.bridge.enabled:
+        if not powens_status.get("connected") and self.bridge.enabled and self.bridge.environment != "sandbox":
             try:
                 bridge_snapshot = self.bridge.snapshot()
                 bridge_accounts = bridge_snapshot["accounts"]
@@ -1469,27 +1712,57 @@ class DashboardBuilder:
                 },
             ]
 
+        bank_accounts, bank_transactions, banking = business_banking(
+            self.config, bank_accounts, bank_transactions
+        )
+        if public_deployment:
+            bank_transactions = []
+        for status in (powens_status, bridge_status):
+            status.pop("domain", None)
+            status["transactions_visible"] = bool(bank_transactions)
+            if status.get("error"):
+                status["error"] = "Connexion bancaire indisponible. Vérifier l'autorisation du connecteur."
+
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            "cost_assumptions": current_cost_reference(self.config),
             "period": {"since": since.isoformat(), "until": until.isoformat(), "days": period_days},
             "shop": catalog["shop"],
             "totals": totals,
             "stock_totals": {"available": available, "incoming": incoming},
             "fixed_costs_monthly": self.config["monthly_fixed_costs"],
+            "fixed_costs_metadata": {
+                "status": "unverified_config",
+                "basis": "calendar_month_proration",
+                "description": "Charges configurees estimees; montants et dates a confirmer.",
+                "favikon_included_once": True,
+                "other_monthly_amount": other_fixed_monthly,
+                "favikon_monthly_amount": fixed_favikon_monthly,
+                "favikon_period_amount": prorated_monthly_cost(
+                    fixed_favikon_monthly, since, until,
+                    starts_at=fixed_favikon_start,
+                    ends_at=affiliate_config.get("favikon_ended_at"),
+                ),
+            },
             "financial": {
                 "geremy": {
-                    "rate": commission_rate,
+                    "rate": geremy_commission_rate,
+                    "status": totals["geremy_commission_status"],
+                    "commission_basis": geremy_config.get("commission_basis") if commission_confirmed else None,
+                    "campaign_ids": sorted(managed_ids),
                     "campaigns": managed_campaigns,
                     "active_ranges": campaign_ranges,
                 },
-                "bank_account": self.config.get("bank_account", {}),
+                "bank_account": bank_accounts[0],
                 "bank_accounts": bank_accounts,
                 "bank_transactions": bank_transactions,
+                "banking": banking,
                 "powens": powens_status,
                 "bridge": bridge_status,
                 "manual_expenses": manual_expenses,
             },
             "campaign_performance": campaign_performance,
+            "data_status": data_status,
             "affiliate": {
                 "totals": affiliate_totals,
                 "influencers": affiliate_influencers,
@@ -1557,8 +1830,10 @@ class Cache:
         today = date.today()
         requested_since = date.fromisoformat(self.builder.config["business_started_at"])
         meta_available_since = meta_history_start(today)
-        cumulative_since = max(requested_since, meta_available_since)
-        meta_history_truncated = cumulative_since > requested_since
+        # Meta's retention limit must never remove Shopify revenue or business costs.
+        # Each connector is responsible for its own supported history window.
+        cumulative_since = requested_since
+        meta_history_truncated = meta_available_since > requested_since
         shopify_history_complete = bool(
             self.builder.config.get("historical_shopify_orders_complete")
         )
@@ -1570,12 +1845,24 @@ class Cache:
                 f"Historique Meta avant le {meta_available_since.isoformat()} "
                 "indisponible (limite de 37 mois)"
             )
-        cumulative_data = self.get(
+        cumulative_data = deepcopy(self.get(
             cumulative_since,
             today,
             force=force,
             include_analytics=False,
+        ))
+        cumulative_sources = cumulative_data.get("data_status", {})
+        source_history_complete = all(
+            cumulative_sources.get(source, {}).get("status", "available") == "available"
+            for source in ("shopify_orders", "meta_account", "meta_campaigns")
         )
+        if not source_history_complete and not meta_history_truncated:
+            missing_data.append("Une source necessaire au cumul est partielle ou indisponible")
+        costs_complete = cumulative_data["totals"].get("cost_completeness") is True
+        if not costs_complete:
+            missing_data.append("Couts historiques configures et charges non rapproches integralement")
+        if cumulative_data["totals"].get("estimated_result_excludes_unconfirmed_commission"):
+            missing_data.append("Commission non confirmee exclue du resultat partiel")
         trend_since = max(cumulative_since, until - timedelta(days=730))
         trend_until = min(until, today)
         trend_daily = [
@@ -1584,6 +1871,20 @@ class Cache:
             if trend_since.isoformat() <= row["date"] <= trend_until.isoformat()
         ]
         response = deepcopy(period_data)
+        # Inventory is a current operational snapshot, independent of the sales filter.
+        for key in ("stock", "stock_totals"):
+            if key in cumulative_data:
+                response[key] = deepcopy(cumulative_data[key])
+        response["stock_as_of"] = today.isoformat()
+        response["stock_snapshot_at"] = self.builder.config.get("stock_snapshot_at")
+        response["data_freshness"] = {
+            **response.get("data_freshness", {}),
+            "selected_period_generated_at": period_data.get("generated_at"),
+            "cumulative_generated_at": cumulative_data.get("generated_at"),
+            "stock_generated_at": cumulative_data.get("generated_at"),
+            "stock_as_of": today.isoformat(),
+            "physical_stock_snapshot_at": self.builder.config.get("stock_snapshot_at"),
+        }
         response["cumulative"] = {
             "period": cumulative_data["period"],
             "requested_since": requested_since.isoformat(),
@@ -1591,12 +1892,27 @@ class Cache:
             "meta_history_available_since": meta_available_since.isoformat(),
             "meta_history_truncated": meta_history_truncated,
             "shopify_history_complete": shopify_history_complete,
+            "cost_completeness": costs_complete,
+            "source_status": cumulative_sources,
+            "generated_at": cumulative_data.get("generated_at"),
             "totals": cumulative_data["totals"],
             "is_estimate": True,
-            "is_complete": shopify_history_complete and not meta_history_truncated,
-            "basis": "all known revenues minus all known expenses",
+            "is_complete": (
+                shopify_history_complete and not meta_history_truncated
+                and source_history_complete and costs_complete
+            ),
+            "basis": "known Shopify revenues minus recorded or estimated costs; missing source history is not zero",
             "missing_data": "; ".join(missing_data) or None,
         }
+        trend_totals = {}
+        for metric in ("revenue", "contribution_margin", "ad_spend", "estimated_result"):
+            observed = round(sum(
+                row[metric] for row in trend_daily if row.get(metric) is not None
+            ), 2)
+            trend_totals[metric] = (
+                observed if all(row.get(metric) is not None for row in trend_daily) else None
+            )
+            trend_totals[f"{metric}_observed"] = observed
         response["trend_history"] = {
             "period": {
                 "since": trend_since.isoformat(),
@@ -1604,16 +1920,7 @@ class Cache:
                 "days": len(trend_daily),
             },
             "daily": trend_daily,
-            "totals": {
-                "revenue": round(sum(row["revenue"] for row in trend_daily), 2),
-                "contribution_margin": round(
-                    sum(row["contribution_margin"] for row in trend_daily), 2
-                ),
-                "ad_spend": round(sum(row["ad_spend"] for row in trend_daily), 2),
-                "estimated_result": round(
-                    sum(row["estimated_result"] for row in trend_daily), 2
-                ),
-            },
+            "totals": trend_totals,
             "grain": "daily_source_monthly_display",
             "label": "24 derniers mois",
         }
@@ -1647,12 +1954,8 @@ def parse_period(query: dict[str, list[str]]) -> tuple[date, date]:
     until = date.fromisoformat(query.get("until", [today.isoformat()])[0])
     if until < since:
         raise ValueError("until must be on or after since")
-    meta_available_since = meta_history_start(today)
-    if since < meta_available_since:
-        raise ValueError(
-            "Historique Meta limité à 37 mois : choisissez une date de début "
-            f"à partir du {meta_available_since.isoformat()}."
-        )
+    if until > today:
+        raise ValueError("until cannot be in the future")
     if (until - since).days > 3650:
         raise ValueError("period cannot exceed 10 years")
     return since, until
@@ -1699,11 +2002,11 @@ def make_handler(cache: Cache):
                     )
                     return
                 self.send_bytes(b'{"error":"not found"}', "application/json", 404)
-            except Exception as exc:  # The UI needs a structured connector error.
+            except Exception as exc:  # Never expose connector URLs, tokens or response bodies.
                 self.send_bytes(
-                    json.dumps({"error": str(exc)}).encode("utf-8"),
+                    json.dumps({"error": "Période invalide." if isinstance(exc, ValueError) else "Données temporairement indisponibles : un connecteur n'a pas pu être actualisé."}).encode("utf-8"),
                     "application/json; charset=utf-8",
-                    500,
+                    400 if isinstance(exc, ValueError) else 503,
                 )
 
         def log_message(self, fmt: str, *args: Any) -> None:
@@ -1722,7 +2025,20 @@ def load_config() -> dict[str, Any]:
     affiliate_config = deepcopy(DEFAULT_AFFILIATE_CONFIG)
     affiliate_config.update(config.get("affiliate", {}))
     config["affiliate"] = affiliate_config
-    return config
+    # A dated business-only statement can be imported without transferring bank
+    # credentials or personal accounts to this deployment.
+    bank_snapshot_json = os.environ.get("TESIGN_BANK_SNAPSHOT_JSON")
+    if bank_snapshot_json:
+        snapshot = json.loads(bank_snapshot_json)
+        if snapshot.get("scope") != "business" or snapshot.get("source") != "enable_banking_snapshot":
+            raise ValueError("Le relevé doit concerner uniquement le compte professionnel TESIGN.")
+        date.fromisoformat(snapshot["recorded_at"][:10])
+        config["bank_accounts"] = [{
+            "label": "Compte professionnel TESIGN", "scope": "business",
+            "balance": float(snapshot["balance"]), "currency_code": snapshot.get("currency_code", "EUR"),
+            "recorded_at": snapshot["recorded_at"], "source": "enable_banking_snapshot",
+        }]
+    return normalize_config(config)
 
 
 def main() -> None:

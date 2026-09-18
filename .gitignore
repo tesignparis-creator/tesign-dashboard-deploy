@@ -2,3 +2,6 @@ latest-dashboard.json
 .env
 .env.*
 __pycache__/
+*.local.json
+qa-data/
+*.log

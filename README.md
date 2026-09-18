@@ -1,102 +1,47 @@
-# Tesign Stock Dashboard
+# Tableau de bord TESIGN
 
-Local read-only dashboard that combines:
+Consultation seule : Shopify, Meta, coûts, stock et relevé professionnel daté.
 
-- Shopify orders, products, variants and inventory;
-- Meta Ads spend, attributed purchases and purchase value;
-- France/Turkey stock lots;
-- product, URSSAF, packaging, payment, shipping and fixed costs;
-- Geremy's 9% commission on Shopify revenue generated while his Meta campaigns are active;
-- manual bank balance, URSSAF due/paid reconciliation and a manual expense ledger;
-- revenue, contribution margin, estimated result, CPA and ROAS.
+## Indicateurs corrigés — 18 septembre 2026
 
-The daily view separates Shopify revenue/Meta spend lines from estimated-result bars. Profit bars
-are green and loss bars are red around a dedicated zero line, avoiding a misleading shared scale.
+- ROAS Meta = CA attribué Meta / dépenses Meta ; CPA Meta = dépenses / achats attribués.
+- Sans achat attribué, le CPA Meta est indéterminé. Une panne de source reste inconnue.
+- MER = tout le CA Shopify / dépenses Meta, sans présumer l'attribution.
+- Le résultat est partiel : coûts historiques, abonnements et commissions restent estimatifs.
+- Le cumul conserve Shopify avant la limite de conservation de Meta ; le résultat incomplet n'est pas déclaré certain.
+- Charges mensuelles au prorata calendaire ; Favikon inclus une seule fois.
+- Les campagnes sont identifiées par ID. Une commission ne devient une déduction que si contrat, périmètre et base sont explicitement confirmés dans la configuration.
 
-The first KPI is cumulative from `business_started_at` and is never affected by the date filter.
-All other KPIs use the selected period. KPI targets are configured in `kpi_targets`; the current
-CPA target is 15 EUR. ROAS target is calculated from the current margin after Geremy's 9%
-commission: with a 48% gross margin, the current target is 1 / (48% - 9%) = 2.56.
-Fixed costs are never accrued before `business_started_at`, even when the selected period starts
-several years earlier.
-The Shopify app has read-only `read_all_orders` and `read_reports` scopes. The cumulative KPI starts
-on the first paid Shopify order, 8 August 2023, and `historical_shopify_orders_complete` is true.
-Each margin profile also projects the selected period's result by applying that margin to period
-revenue, then subtracting Meta spend, Geremy commission, fixed costs and manual business expenses.
-The dashboard also shows the selected period's T-shirt/sweatshirt sales mix beside the CPA target;
-the 15 EUR operational target is intentionally conservative because T-shirts dominate sales.
+## Coûts actuels
 
-Site visits, conversion rate and add-to-cart figures use Shopify Analytics sessions through the
-read-only `read_reports` scope.
+T-shirt à 45 euros : URSSAF estimée 7, fabrication/impression 13, frais 2, emballage 1,50. Total 23,50 euros par unité.
+Mondial Relay offert : transport 4,50 euros par commande, contribution 17 euros avant publicité et charges fixes.
+Domicile : facturé 4,90 euros, coût transporteur 5,50 euros, contribution 20,90 euros pour un T-shirt.
+Ce sont des coûts déclarés, pas un taux fiscal certifié. Ils s'appliquent à partir du 18/09/2026 ; les commandes historiques conservent leur modèle estimatif antérieur.
+La configuration facultative current_cost_reference permet une autre date d'effet explicitement confirmée.
 
-## Start
+## Banque et données sensibles
 
-Open a new PowerShell terminal, then run:
+Seuls les comptes professionnels identifiés sont exposés. Les soldes de démonstration et comptes personnels sont exclus.
+TESIGN_BANK_SNAPSHOT_JSON permet un relevé ponctuel : scope business, source enable_banking_snapshot, recorded_at, balance, currency_code.
+Ce relevé ne constitue pas une synchronisation permanente. Aucune clé bancaire n'est transférée depuis le PC.
+Les transactions sont masquées sur le site public. Les erreurs de connecteurs ne contiennent ni jeton ni réponse brute.
+Ne jamais committer des configurations ou relevés réels. Les fichiers *.local.json sont ignorés.
 
-```powershell
-& .\run-dashboard.ps1
-```
+## Stock
 
-Open <http://127.0.0.1:8765>.
+Les lots sont estimés à partir de l'inventaire physique daté ; le filtre de dates ne change pas le stock actuel calculé.
+Les différences avec Shopify et les lots entrants non rapprochés restent explicitement signalés.
 
-The desktop shortcut `Tesign Dashboard` runs `open-dashboard.ps1`: it starts the local service
-when needed and opens the dashboard in the default browser.
+## Exécution
 
-The service refreshes its API data and `latest-dashboard.json` every 10 minutes, even when the
-dashboard is not open. Its synchronization code only reads Shopify and uses Meta `ads_read`; it
-contains no automatic inventory, product, order, advertisement or campaign mutation.
+Python 3.12+ ; bibliothèque standard (tzdata nécessaire sur Windows pour les fuseaux IANA).
+Configuration privée TESIGN_CONFIG_JSON ou config.json, et variables Shopify/Meta existantes.
+Render démarre python app.py ; actualisation des sources toutes les dix minutes. Le service gratuit peut nécessiter un réveil.
 
-The Shopify app also has `write_inventory`, used for the confirmed 25-unit France initialization
-and reserved for future confirmed stock receipts. The dashboard never calls it automatically.
+## Vérifications
 
-`install-autostart.ps1` starts the service automatically when the current user signs in. It uses
-a scheduled task when allowed, otherwise it creates a shortcut in the user's Startup folder.
+python -m unittest discover -s tests -v
+node tests/test_frontend.cjs
 
-## Generate one JSON snapshot
-
-```powershell
-& 'C:\Users\Admin\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' `
-  .\app.py --once --since 2026-03-20 --until 2026-06-18
-```
-
-## Current stock assumptions
-
-- France stock snapshot: 25 available T-shirts on 16 June 2026.
-- Turkey stock: 160 incoming T-shirts, not counted as available yet.
-- France lots are consumed first.
-- Turkey lots are intentionally not mapped to a Shopify product until the exact thermal
-  product and color variants are confirmed.
-- Shopify currently reports zero inventory for the catalog; the dashboard highlights this
-  mismatch instead of silently overwriting either source.
-
-`shopify-stock-adjustments-review.csv` lists the seven France variants and the 25-unit physical
-stock target. It is a review file only and is not imported automatically.
-
-Secrets are stored in Windows user environment variables and are not present in these files:
-`SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET`, `META_ACCESS_TOKEN`,
-`BRIDGE_CLIENT_ID`, `BRIDGE_CLIENT_SECRET`.
-
-## Manual financial data
-
-`config.json` contains three deliberately separate records:
-
-- `bank_account`: last known balance and recording date. It is not live until a banking API is connected;
-- `urssaf_payments`: URSSAF payments already made, so the dashboard can show the remaining estimate;
-- `business_expenses`: samples and other expenses, using `date`, `amount`, `category` and `description`.
-
-The historical Geremy payment is recorded as 387 EUR. The dashboard compares it with the contractual
-9% calculation instead of treating the transfer as proof of the commission amount.
-
-Powens aggregation is optional. When it is connected, it has priority over Bridge and manual balances.
-Set these Render environment variables to enable it:
-
-- `POWENS_DOMAIN`: domain without protocol, for example `tesign-sandbox.biapi.pro`;
-- `POWENS_CLIENT_ID`: Powens client application id;
-- `POWENS_CLIENT_SECRET`: Powens client application secret;
-- `POWENS_USER_ID`: Powens user id, used with client credentials to renew a user token;
-- or `POWENS_ACCESS_TOKEN` / `POWENS_USER_TOKEN`: user-scoped token if you prefer storing the token directly;
-- `POWENS_SHOW_TRANSACTIONS=true`: optional, displays recent transactions on the dashboard.
-
-Bridge aggregation is optional fallback. When `BRIDGE_CLIENT_ID` and `BRIDGE_CLIENT_SECRET` are present,
-the dashboard uses Bridge accounts only if Powens has no connected account. Detailed transactions are
-hidden on public deployments unless `BRIDGE_SHOW_TRANSACTIONS=true` is explicitly set.
+Tests déterministes sans secrets ni appels réseau. Le déploiement doit aussi être vérifié sur les vraies sources.
