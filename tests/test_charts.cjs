@@ -44,6 +44,12 @@ run("chartFocus('resultChart', 1)");
 assert.match(nodes.resultChartReadout.textContent, /février 2025/);
 assert.match(nodes.resultChartReadout.textContent, /-35,00/);
 assert.match(nodes.resultChartReadout.textContent, /non confirmés/);
+let focusedChartIndex = null;
+nodes.revenueChart.querySelector = selector => ({ focus() { focusedChartIndex = selector; } });
+nodes.revenueChart.onkeydown({ key: 'ArrowRight', preventDefault() {}, target: { closest() { return { getAttribute() { return '0'; } }; } } });
+assert.equal(focusedChartIndex, '[data-chart-index="1"]');
+assert.match(nodes.revenueChartReadout.textContent, /février 2025/);
+assert.match(nodes.revenueChartReadout.textContent, /900,00/);
 
 context.payload.chart_history.monthly.splice(1, 1);
 run('renderEvolution(payload)');
