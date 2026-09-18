@@ -434,7 +434,8 @@
       readout.textContent='Survolez, touchez une période ou utilisez Tab puis les flèches. ? = donnée manquante.';
       const focus=event=>{const item=event.target.closest?.('[data-chart-index]');if(item)chartFocus(id,Number(item.getAttribute('data-chart-index')))};
       target.onpointerover=focus;target.onfocusin=focus;target.onclick=focus;
-      target.onkeydown=event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;const item=event.target.closest?.('[data-chart-index]');if(!item)return;event.preventDefault();const next=Math.max(0,Math.min(rows.length-1,Number(item.getAttribute('data-chart-index'))+(event.key==='ArrowRight'?1:-1)));target.querySelector(`[data-chart-index="${next}"]`)?.focus();};
+      if(!target._chartFocusAttached){target.addEventListener('focus',focus,true);target._chartFocusAttached=true;}
+      target.onkeydown=event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;const item=event.target.closest?.('[data-chart-index]');if(!item)return;event.preventDefault();const next=Math.max(0,Math.min(rows.length-1,Number(item.getAttribute('data-chart-index'))+(event.key==='ArrowRight'?1:-1)));target.querySelector(`[data-chart-index="${next}"]`)?.focus();chartFocus(id,next);};
     }
     function renderCapitalHistory(d) {
       const capital=d.capital_history||{}, complete=capital.is_complete===true;
