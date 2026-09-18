@@ -58,6 +58,41 @@ class ChartHistoryTests(unittest.TestCase):
         self.assertEqual(second["chart_history"], expected)
 
 
+class BusinessPlanTests(unittest.TestCase):
+    def test_only_explicit_planning_fields_are_exposed(self):
+        raw = {"personal_monthly_income_target": 125.25, "target_date": "2031-04-30",
+               "target_context": "  Synthetic planning fixture  ", "private_note": "excluded"}
+        result = app.business_plan({"business_plan": raw})
+        self.assertEqual(result, {
+            "personal_monthly_income_target": 125.25, "target_date": "2031-04-30",
+            "target_context": "Synthetic planning fixture",
+        })
+        self.assertEqual(app.business_plan({}), dict.fromkeys(result))
+
+    def test_invalid_values_remain_unknown_and_context_is_bounded(self):
+        for amount in (None, "bad", -1, True, float("nan"), float("inf")):
+            with self.subTest(amount=amount):
+                result = app.business_plan({"business_plan": {
+                    "personal_monthly_income_target": amount, "target_date": "2031-02-30",
+                    "target_context": {"private": "not a string"},
+                }})
+                self.assertEqual(result, dict.fromkeys(result))
+        self.assertEqual(len(app.business_plan({"business_plan": {"target_context": "a" * 200}})["target_context"]), 120)
+
+    def test_environment_import_and_dashboard_contract(self):
+        plan = {"personal_monthly_income_target": 125.25, "target_date": "2031-04-30"}
+        with patch.dict(os.environ, {
+            "TESIGN_CONFIG_JSON": "{}", "TESIGN_BUSINESS_PLAN_JSON": json.dumps(plan),
+        }, clear=True), patch.object(app, "load_local_env"), patch.object(app, "normalize_config", side_effect=lambda value: value):
+            config = app.load_config()
+        self.assertEqual(config["business_plan"], plan)
+        builder = FakeBuilder()
+        builder.config["business_plan"] = plan
+        with patch.object(app, "date", FrozenDate):
+            data = app.Cache(builder, 600).get_dashboard(date(2026, 9, 1), date(2026, 9, 18))
+        self.assertEqual(data["business_plan"]["personal_monthly_income_target"], 125.25)
+
+
 class CapitalHistoryTests(unittest.TestCase):
     TODAY = date(2026, 9, 18)
 
