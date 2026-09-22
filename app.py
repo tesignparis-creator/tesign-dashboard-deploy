@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 HTML_PATH = ROOT / "dashboard.html"
+ENZO_HTML_PATH = ROOT / "enzo.html"
 STATIC_PATH = ROOT / "static"
 DEFAULT_AFFILIATE_CONFIG = {
     "favikon_monthly_cost": 200.0,
@@ -2186,6 +2187,9 @@ def make_handler(cache: Cache):
             try:
                 if parsed.path == "/":
                     self.send_bytes(HTML_PATH.read_bytes(), "text/html; charset=utf-8")
+                    return
+                if parsed.path == "/enzo":
+                    self.send_bytes(ENZO_HTML_PATH.read_bytes(), "text/html; charset=utf-8")
                     return
                 if parsed.path in static_assets:
                     filename, content_type = static_assets[parsed.path]

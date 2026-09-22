@@ -14,12 +14,20 @@
     return `<article class="summary-metric"><span class="label">${safe(label)}${badge?` <span class="small-badge">${safe(badge)}</span>`:''}</span><strong class="${cls}">${safe(value)}</strong><small>${safe(note)}</small></article>`;
   }
   function selectPane(name, focus=false) {
-    if (!['overview','history','future','details'].includes(name)) name='overview';
+    if (!['overview','history','future','details','enzo'].includes(name)) name='overview';
     currentPane=name;
     document.querySelectorAll('header .controls label').forEach(label=>label.hidden=name!=='details');
     if($('period'))$('period').hidden=name!=='details';
     document.querySelectorAll('.vision-pane').forEach(p => {p.hidden=p.id!==`view-${name}`});
     document.querySelectorAll('.vision-nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===name)));
+    document.querySelector('header .controls').hidden=name==='enzo';
+    document.querySelector('main > .status').hidden=name==='enzo';
+    if($('qualityDetails'))$('qualityDetails').hidden=name==='enzo';
+    if(name==='enzo') {
+      const frame=$('enzoFrame');
+      if(frame && !frame.hasAttribute('src'))frame.src='/enzo';
+      if(location.hash!=='#enzo')history.replaceState(null,'',location.pathname+location.search+'#enzo');
+    } else if(location.hash==='#enzo')history.replaceState(null,'',location.pathname+location.search);
     if(focus) {$(`view-${name}`).focus({preventScroll:true}); window.scrollTo({top:0,behavior:'smooth'})}
   }
   function fold(container, title, sections, open=false) {
@@ -30,11 +38,17 @@
   function init() {
     const main=document.querySelector('main'), original=[...main.children];
     const nav=document.createElement('nav');nav.className='vision-nav';nav.setAttribute('aria-label','Vues du tableau de bord');
-    nav.innerHTML=[['overview','L’essentiel'],['history','Historique détaillé'],['future','Cap 2027'],['details','Gestion & sources']].map(([id,label])=>`<button type="button" data-view="${id}" aria-controls="view-${id}" aria-pressed="${id==='overview'}">${label}</button>`).join('');
+    nav.innerHTML=[['overview','L’essentiel'],['history','Historique détaillé'],['future','Cap 2027'],['details','Gestion & sources'],['enzo','Enzo']].map(([id,label])=>`<button type="button" data-view="${id}" aria-controls="view-${id}" aria-pressed="${id==='overview'}">${label}</button>`).join('');
     main.before(nav);
     nav.addEventListener('click',event=>{const b=event.target.closest('[data-view]');if(b)selectPane(b.dataset.view)});
-    ['overview','history','future','details'].forEach(name=>{
+    ['overview','history','future','details','enzo'].forEach(name=>{
       const pane=document.createElement('section');pane.id=`view-${name}`;pane.className='vision-pane';pane.tabIndex=-1;pane.hidden=name!=='overview';main.append(pane);
+    });
+    $('view-enzo').innerHTML='<p class="enzo-intro">Ton ancien espace de travail, avec les données actuelles. <a href="/enzo" target="_blank" rel="noopener">Ouvrir en pleine page ↗</a></p><iframe id="enzoFrame" class="enzo-frame" title="Enzo : Stock, marge et acquisition"></iframe>';
+    window.addEventListener('message',event=>{
+      const frame=$('enzoFrame'),height=event.data?.height;
+      if(event.origin!==location.origin || event.source!==frame.contentWindow || event.data?.type!=='tesign-enzo-height')return;
+      if(typeof height==='number' && Number.isFinite(height))frame.style.height=Math.min(50000,Math.max(700,height))+'px';
     });
     $('view-overview').innerHTML=`
       <section class="overview-hero" aria-label="Ambition de TESIGN">
@@ -101,7 +115,7 @@
       if(data)render(data);
     }));
     $('scenarioReset').onclick=()=>{inputs={};try{localStorage.removeItem(key)}catch(_){}fillInputs();if(data)render(data)};
-    selectPane('overview');
+    selectPane(location.hash==='#enzo'?'enzo':'overview');
   }
   function drawBars(id,rows,valueKey,signed=false){
     const el=$(id); const vals=rows.map(r=>r[valueKey]).filter(known);

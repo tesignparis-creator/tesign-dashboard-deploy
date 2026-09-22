@@ -16,6 +16,12 @@ La trajectoire future est un scénario de travail estimatif, distinct des ventes
 
 Les fichiers CSS et JavaScript du tableau de bord sont servis par une liste explicite de routes statiques ; aucun chemin de fichier arbitraire n'est exposé.
 
+## Espace Enzo
+
+L’onglet Enzo (`/#enzo`, ou `/enzo` en pleine page) conserve la présentation « Stock, marge & acquisition » issue de `c0dfb5d`, avant la refonte de navigation. Ses styles et graphiques sont isolés de l’interface actuelle. Il interroge les sources actuelles via la même API, avec les corrections financières du 18 septembre ; ce n’est pas une capture de chiffres historiques. Les limites des sources restent consultables en haut de la page.
+
+La to-do list partage la clé locale `tesign.todo.v1` entre les deux vues. Les modifications sont synchronisées dans le même navigateur et une liste vide reste vide. Les tâches ne sont pas sauvegardées sur le serveur.
+
 ## Indicateurs corrigés — 18 septembre 2026
 
 - ROAS Meta = CA attribué Meta / dépenses Meta ; CPA Meta = dépenses / achats attribués.

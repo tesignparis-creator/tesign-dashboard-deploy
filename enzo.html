@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="icon" type="image/png" href="/static/favicon.png">
-  <title>TESIGN — Vision & pilotage</title>
+  <title>Enzo · TESIGN - Stock, marge et acquisition</title>
   <style>
     :root { --bg:#f3f1ec; --panel:#fff; --ink:#151515; --muted:#77736b; --line:#dedbd4; --good:#176b4d; --bad:#b44235; --accent:#d8ff42; }
     * { box-sizing:border-box; }
@@ -48,10 +48,6 @@
     .objective-box li { padding-left:3px; }
     .plan-box { margin-top:12px; padding:16px; border:1px solid #b9b5ab; border-radius:12px; background:#fff; }
     .plan-box strong { display:block; margin-top:6px; font-size:24px; letter-spacing:-.6px; }
-    .plan-box h2 { margin:7px 0; font-size:26px; letter-spacing:-.6px; }
-    .plan-steps { margin:16px 0 0; padding:0; list-style:none; }
-    .plan-steps li { padding:12px 0; border-top:1px solid var(--line); line-height:1.5; }
-    .plan-steps b { display:block; margin-bottom:3px; }
     .todo-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; }
     .todo-head h2 { margin-bottom:3px; }
     .todo-actions { display:flex; gap:6px; align-items:center; }
@@ -105,59 +101,19 @@
     .pill.rentable { background:#daf2e5; color:var(--good); }
     .pill.perte { background:#ffe6e2; color:var(--bad); }
     .warnings { margin:0 0 14px; padding:0; list-style:none; }
+    .source-details { margin-bottom:18px; color:var(--muted); font-size:13px; }
+    .source-details summary { cursor:pointer; padding:10px 0; }
     .warnings li { background:#fff2d6; border:1px solid #efd99e; border-radius:8px; margin-top:7px; padding:9px 11px; }
     .hidden-panel { display:none; }
     .note { margin:-7px 0 13px; color:var(--muted); font-size:12px; }
     .error { margin:20px 32px; padding:14px; border-radius:10px; background:#ffe6e2; color:var(--bad); }
-    .evolution { margin-top:16px; }
-    .evolution-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap; }
-    .evolution-head h2 { margin:2px 0 8px; font-size:24px; letter-spacing:-.7px; }
-    .evolution-head p { max-width:690px; margin:0; color:var(--muted); }
-    .chart-controls { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
-    .chart-controls select { height:38px; max-width:100%; border:1px solid var(--line); border-radius:8px; padding:0 10px; background:#fff; color:var(--ink); font:inherit; }
-    .chart-coverage { margin:14px 0 0; padding:10px 12px; background:#f7f5f0; border-radius:8px; font-size:12px; color:#625e55; }
-    .charts-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
-    .chart-panel { min-width:0; padding:18px; }
-    .chart-panel h3 { margin:0 0 3px; font-size:16px; letter-spacing:-.25px; }
-    .chart-heading { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-    .chart-total { display:block; font-size:27px; letter-spacing:-.8px; margin:7px 0 2px; font-weight:750; }
-    .chart-note { margin:0; min-height:34px; color:var(--muted); font-size:12px; }
-    .chart-legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:11px; margin:12px 0 0; }
-    .chart-legend span { display:flex; align-items:center; gap:5px; }
-    .chart-legend i { width:9px; height:9px; border-radius:2px; display:inline-block; }
-    .chart-visual { margin-top:8px; min-height:248px; }
-    .chart-visual svg { width:100%; height:248px; display:block; overflow:visible; }
-    .chart-hit { cursor:crosshair; fill:transparent; outline:none; }
-    .chart-hit:hover,.chart-hit:focus { fill:rgba(21,21,21,.07); stroke:#77736b; stroke-width:1; }
-    .chart-readout { min-height:43px; margin:5px 0 9px; padding:8px 10px; background:#f7f5f0; border-radius:7px; color:#4e4b45; font-size:12px; }
-    .chart-empty { min-height:248px; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); padding:24px; border:1px dashed var(--line); border-radius:8px; }
-    .chart-panel details,.capital-history details { margin-top:8px; }
-    .chart-panel summary,.capital-history summary,.trend-details summary { cursor:pointer; font-size:12px; font-weight:700; }
-    .chart-panel .table-wrap { margin-top:10px; max-height:250px; }
-    .chart-panel th,.chart-panel td { font-size:11px; }
-    .chart-panel th:first-child,.chart-panel td:first-child { text-align:left; }
-    .chart-panel th:not(:first-child),.chart-panel td:not(:first-child) { text-align:right; }
-    .metric-switch { display:flex; padding:3px; border-radius:8px; background:#f3f1ec; gap:3px; }
-    .metric-switch button { height:29px; padding:0 8px; color:var(--muted); background:transparent; border:0; font-size:11px; }
-    .metric-switch button[aria-pressed="true"] { background:#fff; color:var(--ink); box-shadow:0 1px 4px #0001; }
-    .capital-history { margin-top:12px; padding:18px; }
-    .capital-history h3 { margin:0 0 8px; font-size:17px; }
-    .capital-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:12px 0; }
-    .capital-cards > div { padding:12px; background:var(--bg); border-radius:8px; }
-    .capital-cards strong { display:block; font-size:22px; margin-top:4px; }
-    .capital-cards small { color:var(--muted); }
-    .trend-details { margin-top:14px; }
-    .trend-details > div { margin-top:12px; }
-    @media(max-width:800px) { .charts-grid{grid-template-columns:1fr} }
-    @media(max-width:650px) { .chart-panel{padding:14px}.chart-heading{flex-wrap:wrap}.capital-cards{grid-template-columns:1fr}.evolution-head h2{font-size:22px}.chart-total{font-size:25px}.chart-controls{width:100%}.chart-controls label{flex:1} }
     @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.ai-grid,.trend-grid{grid-template-columns:repeat(2,1fr)} }
     @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .status{flex-direction:column;gap:6px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid,.todo-list,.ai-grid,.trend-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
   </style>
-  <link rel="stylesheet" href="/static/pilotage.css">
 </head>
 <body>
   <header>
-    <div><div class="eyebrow">TESIGN / Art is life.</div><h1>TESIGN en chiffres</h1></div>
+    <div><div class="eyebrow">Tesign / espace Enzo</div><h1>Stock, marge & acquisition</h1></div>
     <div class="controls">
       <label>Depuis<input id="since" type="date"></label>
       <label>Jusqu'au<input id="until" type="date"></label>
@@ -167,19 +123,12 @@
   <div id="error" class="error" hidden></div>
   <main>
     <div class="status"><span id="period"></span><span id="updated"></span></div>
-    <ul id="warnings" class="warnings" aria-label="Limites des données"></ul>
+    <details class="source-details"><summary>Sources et limites · coûts estimatifs et historique partiel</summary><ul id="warnings" class="warnings" aria-label="Limites des données"></ul></details>
     <section id="cards" class="cards"></section>
     <p id="historyNotice" class="note" hidden></p>
-    <section class="plan-box" aria-labelledby="businessGoalTitle">
-      <span id="businessGoalDate" class="eyebrow">Objectif de revenu personnel</span>
-      <h2 id="businessGoalTitle">Vivre de TESIGN</h2>
-      <p id="businessGoalDescription">Construire un revenu personnel régulier après les dépenses de TESIGN.</p>
-      <ul class="plan-steps" aria-label="Étapes clés de développement">
-        <li><b>Production en Turquie</b>Développer la nouvelle production en suivant la qualité, les délais et le coût complet des pièces.</li>
-        <li><b>Lancement TikTok</b>Faire connaître TESIGN grâce aux contenus et suivre les visites puis les ventes qu'ils génèrent.</li>
-        <li><b>Formation LiveMentor · tunnel de vente</b>Me former pour structurer le parcours entre la découverte de TESIGN et l'achat, puis appliquer les apprentissages à la marque.</li>
-      </ul>
-      <p class="note">Calendrier des étapes à préciser. Repère de pilotage : l'argent disponible après les charges et les besoins de stock, pas seulement le chiffre d'affaires.</p>
+    <section class="plan-box">
+      <span class="eyebrow">Plan</span>
+      <strong>Tesign : être rentable → gagner de l'argent → acheter Ferrari</strong>
     </section>
     <section class="panel kpi-block">
       <div class="todo-head">
@@ -208,24 +157,6 @@
       <div id="bankTransactionsWrap" class="table-wrap bank-transactions" hidden><table id="bankTransactions"></table></div>
     </section>
     <section class="panel kpi-block"><h2>Santé globale</h2><p id="healthPeriod" class="note" style="margin:-6px 0 12px"></p><div id="healthCards" class="kpi-grid"></div><p id="healthConclusion" class="block-conclusion"></p></section>
-    <section class="evolution" aria-labelledby="evolutionTitle">
-      <div class="evolution-head">
-        <div><div class="eyebrow">L'activité dans le temps</div><h2 id="evolutionTitle">Évolution de TESIGN</h2><p>Ventes, résultat estimé et coûts : des vues séparées pour comprendre ce qui fait évoluer l'activité.</p></div>
-        <div class="chart-controls">
-          <label>Période des graphiques<select id="chartRange"><option value="6">6 derniers mois</option><option value="12" selected>12 derniers mois</option><option value="all">Tout l'historique disponible</option></select></label>
-          <label>Regrouper par<select id="chartGrouping"><option value="month">Mois</option><option value="year">Année</option></select></label>
-        </div>
-      </div>
-      <p id="chartCoverage" class="chart-coverage"></p>
-      <div class="charts-grid">
-        <article class="panel chart-panel"><h3>Chiffre d'affaires</h3><strong id="revenueChartTotal" class="chart-total">—</strong><p class="chart-note">CA Shopify sur la période des graphiques.</p><div id="revenueChart" class="chart-visual"></div><div id="revenueChartReadout" class="chart-readout" aria-live="polite">Survolez une barre ou sélectionnez-la au clavier.</div><details><summary>Voir les chiffres</summary><div class="table-wrap"><table id="revenueChartTable"></table></div></details></article>
-        <article class="panel chart-panel"><h3>Résultat estimé</h3><strong id="resultChartTotal" class="chart-total">—</strong><p class="chart-note">CA − coûts variables − Meta − charges renseignées. Ce n'est pas un bénéfice net certifié.</p><div class="chart-legend"><span><i style="background:#176b4d"></i>Estimation positive</span><span><i style="background:#b44235"></i>Estimation négative</span></div><div id="resultChart" class="chart-visual"></div><div id="resultChartReadout" class="chart-readout" aria-live="polite">Survolez une barre ou sélectionnez-la au clavier.</div><details><summary>Voir les chiffres</summary><div class="table-wrap"><table id="resultChartTable"></table></div></details></article>
-        <article class="panel chart-panel"><h3>Coûts de l'activité</h3><strong id="costsChartTotal" class="chart-total">—</strong><p class="chart-note">Coûts rattachés aux ventes et charges de la période. Distincts des apports personnels et des achats de stock.</p><div id="costsChartLegend" class="chart-legend"></div><div id="costsChart" class="chart-visual"></div><div id="costsChartReadout" class="chart-readout" aria-live="polite">Survolez une barre ou sélectionnez-la au clavier.</div><details><summary>Voir les chiffres</summary><div class="table-wrap"><table id="costsChartTable"></table></div></details></article>
-        <article class="panel chart-panel"><div class="chart-heading"><h3 id="ordersChartTitle">Commandes</h3><div class="metric-switch" role="group" aria-label="Indicateur des ventes"><button id="chartOrdersMetric" type="button" aria-pressed="true">Commandes</button><button id="chartBasketMetric" type="button" aria-pressed="false">Panier moyen</button></div></div><strong id="ordersChartTotal" class="chart-total">—</strong><p id="ordersChartNote" class="chart-note">Commandes Shopify avec paiement, retours inclus.</p><div id="ordersChart" class="chart-visual"></div><div id="ordersChartReadout" class="chart-readout" aria-live="polite">Survolez une barre ou sélectionnez-la au clavier.</div><details><summary>Voir les chiffres</summary><div class="table-wrap"><table id="ordersChartTable"></table></div></details></article>
-      </div>
-      <section id="capitalHistory" class="panel capital-history" aria-labelledby="capitalHistoryTitle"><h3 id="capitalHistoryTitle">Argent personnel investi dans TESIGN</h3><p id="capitalHistoryNote" class="chart-note">Les apports et retraits doivent être documentés séparément des ventes.</p><div id="capitalHistoryCards" class="capital-cards"></div><div id="capitalHistoryLegend" class="chart-legend" hidden></div><div id="capitalHistoryChart" class="chart-visual" hidden></div><div id="capitalHistoryChartReadout" class="chart-readout" aria-live="polite" hidden></div><details id="capitalHistoryDetails" hidden><summary>Voir les flux documentés</summary><div class="table-wrap"><table id="capitalHistoryChartTable"></table></div></details></section>
-      <details class="trend-details"><summary>Repères sur la marge et la publicité</summary><div id="trendCards" class="trend-grid"></div><p id="chartInsight" class="block-conclusion"></p></details>
-    </section>
     <section class="panel kpi-block"><h2>Vente</h2><div id="salesCards" class="kpi-grid sales"></div><p id="salesConclusion" class="block-conclusion"></p></section>
     <section class="panel kpi-block">
       <h2>Meta Ads</h2>
@@ -244,7 +175,13 @@
       <div class="table-wrap affiliate-table"><table id="affiliateInfluencers"></table></div>
       <p id="affiliateConclusion" class="block-conclusion"></p>
     </section>
+    <section class="panel kpi-block">
+      <h2>Tendances business</h2>
+      <div id="trendCards" class="trend-grid"></div>
+      <p id="chartInsight" class="block-conclusion"></p>
+    </section>
     <section class="grid">
+      <div class="panel"><h2>Historique disponible : CA, marge estimée, Meta et résultat estimé</h2><canvas id="chart" width="900" height="270"></canvas><p class="note">Vue mensuelle des données accessibles, jusqu'à 24 mois. Les estimations dépendent des coûts renseignés et de la couverture des sources ; une valeur inconnue n'est pas un zéro.</p></div>
       <div class="panel">
         <h2>Etat du stock</h2>
         <p id="stockFreshness" class="note"></p>
@@ -257,11 +194,6 @@
     </section>
     <section class="panel hidden-panel" style="margin-top:12px"><h2>Performance quotidienne croisée</h2><p class="note">Repère de charges fixes configurées : <strong id="dailyFixed">-</strong> par jour moyen ; montants à confirmer.</p><div class="table-wrap"><table id="daily"></table></div></section>
   </main>
-  <script src="/static/trajectory.js"></script>
-  <script src="/static/annual-summary.js"></script>
-  <script src="/static/annual-forecast.js"></script>
-  <script src="/static/annual-view.js"></script>
-  <script src="/static/vision.js"></script>
   <script>
     const numeric = v => v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
     const moneyFmt = (v,currency='EUR') => numeric(v) == null ? 'Indisponible' : new Intl.NumberFormat('fr-FR',{style:'currency',currency:currency||'EUR'}).format(Number(v));
@@ -270,7 +202,7 @@
     const tone = v => numeric(v) == null ? '' : Number(v) >= 0 ? 'positive' : 'negative';
     const totalKnown = (rows,key) => !rows.length || rows.some(row=>numeric(row[key])==null) ? null : rows.reduce((sum,row)=>sum+Number(row[key]),0);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const today = new Date(); const prior = new Date(today); prior.setDate(1);
+    const today = new Date(); const prior = new Date(today); prior.setDate(today.getDate()-90);
     const dateValue = d => d.toISOString().slice(0,10);
     const dateLabel = value => value ? new Intl.DateTimeFormat('fr-FR').format(new Date(`${value}T00:00:00`)) : '-';
     const timestampLabel = value => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toLocaleString('fr-FR') : 'date inconnue';
@@ -365,13 +297,13 @@
       rows.forEach(row => {
         const month = String(row.date || '').slice(0, 7);
         if(!month) return;
-        if(!months.has(month)) months.set(month, Object.fromEntries([['date',month],...['revenue','contribution_margin','variable_costs','ad_spend','fixed_costs','business_expenses','geremy_commission','estimated_result','orders'].map(key=>[key,0])]));
+        if(!months.has(month)) months.set(month, { date: month, revenue: 0, contribution_margin: 0, ad_spend: 0, estimated_result: 0, orders: 0 });
         const bucket = months.get(month);
-        ['revenue','contribution_margin','variable_costs','ad_spend','fixed_costs','business_expenses','geremy_commission','estimated_result','orders'].forEach(key=>{
+        ['revenue','contribution_margin','ad_spend','estimated_result','orders'].forEach(key=>{
           bucket[key]=bucket[key]==null||numeric(row[key])==null?null:bucket[key]+Number(row[key]);
         });
       });
-      return [...months.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(row => ({
+      return [...months.values()].map(row => ({
         ...row,
         revenue: row.revenue==null?null:Math.round(row.revenue * 100) / 100,
         contribution_margin: row.contribution_margin==null?null:Math.round(row.contribution_margin * 100) / 100,
@@ -379,147 +311,37 @@
         estimated_result: row.estimated_result==null?null:Math.round(row.estimated_result * 100) / 100
       }));
     }
-    const chartMeasures=['revenue','orders','variable_costs','contribution_margin','ad_spend','fixed_costs','business_expenses','geremy_commission','estimated_result'];
-    const chartPalette={revenue:'#252525',variable_costs:'#767f94',ad_spend:'#849b2c',fixed_costs:'#b69370',business_expenses:'#97769b',geremy_commission:'#528883'};
-    let chartData=null, chartSalesMetric='orders';
-    const chartStates=new Map();
-    const chartRound=value=>value==null?null:Math.round(value*100)/100;
-    function chartMonthLabel(value,compact=false) {
-      if(String(value).length===4)return value;
-      const parsed=new Date(`${String(value).slice(0,7)}-01T12:00:00`);
-      return Number.isNaN(parsed.getTime())?value:new Intl.DateTimeFormat('fr-FR',{month:compact?'short':'long',year:compact?'2-digit':'numeric'}).format(parsed);
+    function drawChart(rows) {
+      const canvas = document.getElementById('chart'), ctx = canvas.getContext('2d');
+      const w=canvas.width,h=canvas.height,p=44; ctx.clearRect(0,0,w,h);
+      const values=rows.flatMap(r=>[r.revenue,r.contribution_margin,r.ad_spend,r.estimated_result]).map(numeric).filter(v=>v!=null);
+      const max=Math.max(1,...values)*1.15;
+      const min=Math.min(0,...values)*1.15;
+      const range=Math.max(1,max-min);
+      const x=i=>p+(w-2*p)*(rows.length===1?0:i/(rows.length-1));
+      const y=value=>h-p-(h-2*p)*(Number(value)-min)/range;
+      const zeroY=y(0);
+      ctx.font='12px Inter, Segoe UI, Arial';
+      ctx.strokeStyle='#dedbd4'; ctx.lineWidth=1;
+      for(let i=0;i<5;i++){const value=max-(range*i/4),yy=y(value);ctx.beginPath();ctx.moveTo(p,yy);ctx.lineTo(w-p,yy);ctx.stroke();ctx.fillStyle='#77736b';ctx.fillText(euro(value),6,yy+4)}
+      ctx.strokeStyle='#aaa69d';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(p,zeroY);ctx.lineTo(w-p,zeroY);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#77736b';ctx.fillText('0 €',w-p+5,zeroY+4);
+      const line=(getValue,color,width=3,dash=[])=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();let started=false;rows.forEach((r,i)=>{const value=numeric(getValue(r,i));if(value==null){started=false;return;}const yy=y(value);started?ctx.lineTo(x(i),yy):ctx.moveTo(x(i),yy);started=true;});ctx.stroke();ctx.setLineDash([])};
+      rows.forEach((r,i)=>{const result=numeric(r.estimated_result);if(result==null||result===0)return;ctx.fillStyle=result>0?'rgba(23,107,77,.12)':'rgba(180,66,53,.13)';const left=i===0?p:((x(i-1)+x(i))/2),right=i===rows.length-1?w-p:((x(i)+x(i+1))/2);ctx.fillRect(left,p,Math.max(1,right-left),h-2*p)});
+      line(r=>r.revenue,'#151515',2.5);
+      line(r=>r.contribution_margin,'#176b4d',3);
+      line(r=>r.ad_spend,'#a7c900',2.5,[7,5]);
+      line(r=>r.estimated_result,'#b44235',3);
+      const knownMonths=rows.filter(r=>numeric(r.estimated_result)!=null);
+      const positiveMonths=knownMonths.filter(r=>Number(r.estimated_result)>0).length;
+      const active=knownMonths.filter(r=>Number(r.revenue)>0||Number(r.ad_spend)>0);
+      const best=[...active].sort((a,b)=>Number(b.estimated_result)-Number(a.estimated_result))[0];
+      const worst=[...active].sort((a,b)=>Number(a.estimated_result)-Number(b.estimated_result))[0];
+      [best,worst].filter(Boolean).forEach((r,idx)=>{const i=rows.findIndex(day=>day.date===r.date),yy=y(Number(r.estimated_result));ctx.fillStyle=idx?'#b44235':'#176b4d';ctx.beginPath();ctx.arc(x(i),yy,5,0,Math.PI*2);ctx.fill();ctx.fillText(`${idx?'Faible':'Fort'} ${r.date.slice(5)} ${euro(r.estimated_result)}`,Math.min(w-190,x(i)+8),Math.max(18,yy-8))});
+      const legend=(x0,color,label,dash=false)=>{ctx.strokeStyle=color;ctx.lineWidth=3;ctx.setLineDash(dash?[7,5]:[]);ctx.beginPath();ctx.moveTo(x0,13);ctx.lineTo(x0+18,13);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#151515';ctx.fillText(label,x0+24,17)};
+      legend(p,'#151515','CA');legend(p+75,'#176b4d','Marge estimée');legend(p+215,'#a7c900','Meta',true);legend(p+300,'#b44235','Résultat estimé');
+      ctx.fillStyle='#77736b';ctx.fillText(`${positiveMonths}/${knownMonths.length} estimations > 0`,w-175,17);
+      if(rows.length){ctx.fillStyle='#77736b';ctx.fillText(rows[0].date,p,h-12);ctx.fillText(rows[rows.length-1].date,w-p-48,h-12)}
     }
-    function chartMonthlyRows(d) {
-      const end=String(d.chart_history?.period?.until||d.cumulative?.period?.until||d.period?.until||dateValue(today)).slice(0,10);
-      const start=String(d.chart_history?.period?.since||d.trend_history?.period?.since||d.period?.since||'').slice(0,10);
-      const cutoff=[end,dateValue(today)].sort()[0];
-      const input=Array.isArray(d.chart_history?.monthly)?d.chart_history.monthly:aggregateMonthly(d.trend_history?.daily||d.daily||[]);
-      const months=new Map(input.filter(row=>/^\d{4}-\d{2}/.test(String(row.period||row.date))).map(row=>[String(row.period||row.date).slice(0,7),row]));
-      const validKeys=[...months.keys()].filter(key=>key<=cutoff.slice(0,7)).sort();
-      if(!validKeys.length)return [];
-      const result=[];
-      const cursor=new Date(`${validKeys[0]}-01T12:00:00Z`), last=cutoff.slice(0,7);
-      for(let guard=0;guard<1200&&cursor.toISOString().slice(0,7)<=last;guard++,cursor.setUTCMonth(cursor.getUTCMonth()+1)) {
-        const month=cursor.toISOString().slice(0,7), source=months.get(month);
-        const partialStart=month===start.slice(0,7)&&Number(start.slice(8,10))>1;
-        const partialEnd=month===cutoff.slice(0,7)&&Number(cutoff.slice(8,10))<new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate();
-        result.push({...source,date:month,...Object.fromEntries(chartMeasures.map(key=>[key,numeric(source?.[key])])),missing:!source,partial:partialStart||partialEnd});
-      }
-      return result;
-    }
-    function selectChartRows(months,range,grouping) {
-      const selected=range==='all'?months:months.slice(-Number(range||12));
-      if(grouping!=='year')return selected.map(row=>({...row,average_order_value:numeric(row.orders)>0&&numeric(row.revenue)!=null?chartRound(row.revenue/row.orders):null}));
-      const groups=new Map();
-      selected.forEach(row=>{const year=row.date.slice(0,4);if(!groups.has(year))groups.set(year,[]);groups.get(year).push(row)});
-      return [...groups].map(([year,rows])=>{
-        const out={date:year,partial:rows.length<12||rows.some(row=>row.partial),missing:rows.some(row=>row.missing)};
-        chartMeasures.forEach(key=>{out[key]=chartRound(totalKnown(rows,key))});
-        out.average_order_value=numeric(out.orders)>0&&numeric(out.revenue)!=null?chartRound(out.revenue/out.orders):null;
-        return out;
-      });
-    }
-    function chartAxis(value,unit) {
-      if(unit==='count')return Number.isInteger(value)?number(value):'';
-      return new Intl.NumberFormat('fr-FR',{notation:Math.abs(value)>=10000?'compact':'standard',maximumFractionDigits:0}).format(value)+' €';
-    }
-    function chartValue(value,unit) { return unit==='count'?number(value):euro(value); }
-    function chartFocus(id,index) {
-      const state=chartStates.get(id), row=state?.rows[index];if(!row)return;
-      const suffix=row.partial?' · période partielle':'';
-      document.getElementById(`${id}Readout`).textContent=`${chartMonthLabel(row.date)}${suffix} : ${state.series.map(series=>`${series.label} ${chartValue(row[series.key],state.unit)}`).join(' · ')}${state.partial?' · coûts ou historique non confirmés':''}`;
-    }
-    function drawHistoryChart(id,rows,series,{unit='money',stacked=false,signed=false,partial=false,line=false}={}) {
-      const target=document.getElementById(id);if(!target)return;
-      chartStates.set(id,{rows,series,unit,partial});
-      const readout=document.getElementById(`${id}Readout`);
-      const headers=['Période',...series.map(s=>s.label)];
-      table(`${id}Table`,headers,rows.length?rows.map(row=>`<tr><td>${esc(chartMonthLabel(row.date))}${row.partial?' *':''}</td>${series.map(s=>`<td>${esc(chartValue(row[s.key],unit))}</td>`).join('')}</tr>`):[`<tr><td colspan="${headers.length}">Aucune donnée disponible.</td></tr>`]);
-      const values=rows.flatMap(row=>stacked?[series.reduce((sum,s)=>sum+Math.max(0,numeric(row[s.key])||0),0)]:series.map(s=>numeric(row[s.key]))).filter(value=>value!=null);
-      const hasKnown=rows.some(row=>series.some(s=>numeric(row[s.key])!=null));
-      if(!rows.length||!hasKnown){target.innerHTML='<div class="chart-empty">Données indisponibles pour cette période.<br>Une valeur inconnue ne vaut pas 0 €.</div>';readout.textContent='Les valeurs manquantes restent indiquées dans le tableau.';return;}
-      const width=Math.max(300,Math.round(target.clientWidth||600)), height=248, left=58,right=12,top=16,bottom=38;
-      const plotWidth=width-left-right,plotHeight=height-top-bottom;
-      let max=Math.max(unit==='count'?1:10,...values),min=Math.min(0,...values);
-      max=max>0?max*1.12:0;min=min<0?min*1.12:0;
-      if(unit==='count')max=Math.ceil(max);
-      const span=Math.max(1,max-min), y=value=>top+(max-value)/span*plotHeight, zero=y(0),slot=plotWidth/rows.length;
-      const bar=Math.max(2,Math.min(38,slot*.64)),x=index=>left+slot*(index+.5);
-      let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="group" aria-label="${esc(series.map(s=>s.label).join(', '))}. Valeurs disponibles au clavier et dans le tableau."><defs><pattern id="${id}Unknown" width="5" height="5" patternUnits="userSpaceOnUse"><path d="M0 5L5 0" stroke="#aaa69d" stroke-width="1"/></pattern></defs>`;
-      for(let tick=0;tick<=4;tick++){const value=max-span*tick/4,yy=y(value);svg+=`<line x1="${left}" x2="${width-right}" y1="${yy}" y2="${yy}" stroke="#e7e3dc"/><text x="${left-8}" y="${yy+4}" text-anchor="end" fill="#77736b" font-size="10">${esc(chartAxis(value,unit))}</text>`;}
-      svg+=`<line x1="${left}" x2="${width-right}" y1="${zero}" y2="${zero}" stroke="#a9a59b"/>`;
-      if(line){series.forEach(s=>{let path='';rows.forEach((row,index)=>{const value=numeric(row[s.key]);if(value==null){if(path)svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`;path='';return;}path+=`${path?'L':'M'}${x(index)} ${y(value)} `;svg+=`<circle cx="${x(index)}" cy="${y(value)}" r="3" fill="${s.color}"/>`;});if(path)svg+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`;});}
-      rows.forEach((row,index)=>{
-        let stack=0;let unknown=false;
-        series.forEach(s=>{const value=numeric(row[s.key]);if(value==null){unknown=true;return;}if(line)return;
-          const upper=stacked?stack+value:value,lower=stacked?stack:0,yy=Math.min(y(upper),y(lower)),hh=Math.max(value===0?1:2,Math.abs(y(upper)-y(lower)));
-          svg+=`<rect x="${x(index)-bar/2}" y="${yy}" width="${bar}" height="${hh}" rx="${stacked?0:2}" fill="${signed?(value>=0?'#176b4d':'#b44235'):s.color}" opacity="${row.partial ? .75 : 1}"/>`;if(stacked)stack+=value;
-        });
-        if(unknown)svg+=`<rect x="${x(index)-bar/2}" y="${top+3}" width="${bar}" height="7" fill="url(#${id}Unknown)"/><text x="${x(index)}" y="${top+22}" text-anchor="middle" fill="#77736b" font-size="12">?</text>`;
-        const stride=Math.max(1,Math.ceil(rows.length/Math.max(2,Math.floor(plotWidth/68))));
-        if(index%stride===0||index===rows.length-1&&index%stride>stride/2)svg+=`<text x="${x(index)}" y="${height-12}" text-anchor="middle" fill="#77736b" font-size="10">${esc(chartMonthLabel(row.date,true))}${row.partial?'*':''}</text>`;
-        const title=`${chartMonthLabel(row.date)}${row.partial?' (partiel)':''} : ${series.map(s=>`${s.label} ${chartValue(row[s.key],unit)}`).join(', ')}`;
-        svg+=`<rect class="chart-hit" data-chart-index="${index}" tabindex="0" role="img" aria-label="${esc(title)}" x="${left+slot*index}" y="${top}" width="${Math.max(slot,1)}" height="${plotHeight}"><title>${esc(title)}</title></rect>`;
-      });
-      target.innerHTML=svg+'</svg>';
-      readout.textContent='Survolez, touchez une période ou utilisez Tab puis les flèches. ? = donnée manquante.';
-      const focus=event=>{const item=event.target.closest?.('[data-chart-index]');if(item)chartFocus(id,Number(item.getAttribute('data-chart-index')))};
-      target.onpointerover=focus;target.onfocusin=focus;target.onclick=focus;
-      if(!target._chartFocusAttached){target.addEventListener('focus',focus,true);target._chartFocusAttached=true;}
-      target.onkeydown=event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;const item=event.target.closest?.('[data-chart-index]');if(!item)return;event.preventDefault();const next=Math.max(0,Math.min(rows.length-1,Number(item.getAttribute('data-chart-index'))+(event.key==='ArrowRight'?1:-1)));target.querySelector(`[data-chart-index="${next}"]`)?.focus();chartFocus(id,next);};
-    }
-    function renderCapitalHistory(d) {
-      const capital=d.capital_history||{}, complete=capital.is_complete===true;
-      const flows=(capital.flows||[]).filter(flow=>flow.date&&String(flow.date).slice(0,10)<=dateValue(today));
-      const totals=complete?capital.totals||{}:capital.observed_totals||{};
-      const known=flows.length>0||complete, hasContributions=flows.some(flow=>flow.type==='contribution'),hasWithdrawals=flows.some(flow=>flow.type==='withdrawal');
-      document.getElementById('capitalHistoryTitle').textContent=complete?'Argent personnel investi dans TESIGN':'Apports personnels documentés';
-      document.getElementById('capitalHistoryNote').textContent=complete?'Apports et retraits personnels documentés. Ce financement est distinct du CA, du bénéfice et du solde bancaire.':known?'Historique incomplet : seuls les flux documentés sont affichés, à partir du premier relevé disponible. Les apports plus anciens et les retraits non renseignés restent inconnus ; le total net investi depuis la création ne peut pas être établi.':'L’historique des apports personnels et des retraits n’est pas encore documenté. Le solde bancaire et les dépenses publicitaires ne permettent pas de le reconstituer.';
-      const cards=[
-        [complete?'Apports personnels':'Apports documentés',complete||hasContributions?euro(totals.contributions):'À renseigner',complete?'Historique confirmé':hasContributions?'Montant documenté seulement':'Aucun apport documenté'],
-        [complete?'Retraits personnels':hasWithdrawals?'Retraits documentés':'Retraits personnels',complete||hasWithdrawals?euro(totals.withdrawals):'À renseigner',complete?'Historique confirmé':hasWithdrawals?'Montant documenté seulement':'Aucun retrait documenté ; cela ne signifie pas 0 €'],
-        ['Apports − retraits',complete?euro(totals.net_contributions):'Non calculable',complete?'Historique confirmé':'Historique complet des flux nécessaire']
-      ];
-      document.getElementById('capitalHistoryCards').innerHTML=cards.map(([label,value,note])=>`<div><span class="eyebrow">${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(note)}</small></div>`).join('');
-      ['capitalHistoryChart','capitalHistoryChartReadout','capitalHistoryDetails','capitalHistoryLegend'].forEach(id=>{document.getElementById(id).hidden=!known});
-      if(!known)return;
-      const firstFlow=flows.map(flow=>String(flow.date).slice(0,7)).sort()[0];
-      const capitalRows=(capital.monthly||[]).filter(row=>{const month=String(row.date||row.period).slice(0,7);return month<=dateValue(today).slice(0,7)&&(complete||!firstFlow||month>=firstFlow)}).map(row=>({...row,date:String(row.period||row.date).slice(0,7)}));
-      const series=[];
-      if(complete||hasContributions)series.push({key:'cumulative_contributions',label:complete?'Apports cumulés':'Apports documentés cumulés',color:'#176b4d'});
-      if(complete||hasWithdrawals)series.push({key:'cumulative_withdrawals',label:complete?'Retraits cumulés':'Retraits documentés cumulés',color:'#b44235'});
-      document.getElementById('capitalHistoryLegend').innerHTML=series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('');
-      drawHistoryChart('capitalHistoryChart',capitalRows,series,{line:true});
-      table('capitalHistoryChartTable',['Date','Flux','Montant','Source'],flows.length?flows.map(flow=>`<tr><td>${esc(dateLabel(flow.date))}</td><td>${flow.type==='contribution'?'Apport personnel':'Retrait personnel'}</td><td>${esc(euro(flow.amount))}</td><td>${esc(flow.source||'Non renseignée')}</td></tr>`):['<tr><td colspan="4">Aucun flux dans l’historique confirmé.</td></tr>']);
-    }
-    function renderEvolution(d) {
-      chartData=d;
-      const allMonths=chartMonthlyRows(d), range=document.getElementById('chartRange').value||'12',grouping=document.getElementById('chartGrouping').value||'month';
-      const rows=selectChartRows(allMonths,range,grouping),resultPartial=d.chart_history?.cost_completeness!==true;
-      const revenue=totalKnown(rows,'revenue'),result=totalKnown(rows,'estimated_result'),ordersCount=totalKnown(rows,'orders');
-      const coverage=rows.length?`${chartMonthLabel(rows[0].date)} → ${chartMonthLabel(rows.at(-1).date)}`:'Aucune période disponible';
-      document.getElementById('chartCoverage').textContent=`${coverage}. Période indépendante des dates du tableau de bord. * = mois ou année partiel(le). Les valeurs inconnues restent absentes ; les coûts historiques et le résultat sont estimatifs.${resultPartial?' Le résultat inclut seulement les coûts renseignés.':''}${!d.chart_history?' Historique limité aux données actuellement transmises.':''}`;
-      document.getElementById('revenueChartTotal').textContent=euro(revenue);
-      document.getElementById('resultChartTotal').textContent=result==null?'Non calculable':`${euro(result)}${resultPartial?' · partiel':''}`;
-      document.getElementById('resultChartTotal').className=`chart-total ${tone(result)}`;
-      drawHistoryChart('revenueChart',rows,[{key:'revenue',label:'CA Shopify',color:chartPalette.revenue}]);
-      drawHistoryChart('resultChart',rows,[{key:'estimated_result',label:'Résultat estimé',color:'#176b4d'}],{signed:true,partial:resultPartial});
-      const costs=[{key:'variable_costs',label:'Variables',color:chartPalette.variable_costs},{key:'ad_spend',label:'Meta',color:chartPalette.ad_spend},{key:'fixed_costs',label:'Fixes',color:chartPalette.fixed_costs}];
-      [{key:'business_expenses',label:'Autres charges',color:chartPalette.business_expenses},{key:'geremy_commission',label:'Commission',color:chartPalette.geremy_commission}].forEach(series=>{if(rows.some(row=>numeric(row[series.key])>0))costs.push(series)});
-      const fullCosts=rows.length&&rows.every(row=>costs.every(s=>numeric(row[s.key])!=null))?rows.reduce((sum,row)=>sum+costs.reduce((subtotal,s)=>subtotal+Number(row[s.key]),0),0):null;
-      document.getElementById('costsChartTotal').textContent=fullCosts==null?'Total incomplet':`${euro(fullCosts)} · coûts renseignés`;
-      document.getElementById('costsChartLegend').innerHTML=costs.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('');
-      drawHistoryChart('costsChart',rows,costs,{stacked:true});
-      const basket=chartSalesMetric==='average_order_value',salesTotal=basket?(ordersCount>0&&revenue!=null?revenue/ordersCount:null):ordersCount;
-      document.getElementById('ordersChartTitle').textContent=basket?'Panier moyen':'Commandes';
-      document.getElementById('ordersChartTotal').textContent=chartValue(salesTotal,basket?'money':'count');
-      document.getElementById('ordersChartNote').textContent=basket?'CA / nombre de commandes. Le total est pondéré par les commandes, pas une moyenne des mois.':'Commandes Shopify avec paiement, retours inclus.';
-      drawHistoryChart('ordersChart',rows,[{key:chartSalesMetric,label:basket?'Panier moyen':'Commandes',color:'#6c749c'}],{unit:basket?'money':'count'});
-      renderCapitalHistory(d);
-    }
-    ['chartRange','chartGrouping'].forEach(id=>{document.getElementById(id).onchange=()=>{if(chartData)renderEvolution(chartData)}});
-    ['chartOrdersMetric','chartBasketMetric'].forEach((id,index)=>{document.getElementById(id).onclick=()=>{chartSalesMetric=index?'average_order_value':'orders';document.getElementById('chartOrdersMetric').setAttribute('aria-pressed',String(!index));document.getElementById('chartBasketMetric').setAttribute('aria-pressed',String(Boolean(index)));if(chartData)renderEvolution(chartData)}});
-    if(typeof window!=='undefined') { let chartResize;window.addEventListener('resize',()=>{clearTimeout(chartResize);chartResize=setTimeout(()=>{if(chartData)renderEvolution(chartData)},120)}) }
     function renderDataReading(d) {
       const t=d.totals;
       const result=numeric(t.estimated_result), purchases=numeric(t.meta_purchases), spend=numeric(t.ad_spend);
@@ -536,16 +358,7 @@
       ];
       aiCoachVerdict.innerHTML=`<strong>Limites de lecture</strong><ul>${rules.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`;
     }
-    function renderBusinessPlan(plan={}) {
-      const income=numeric(plan.personal_monthly_income_target);
-      const targetDate=/^\d{4}-\d{2}-\d{2}$/.test(plan.target_date||'')?new Date(`${plan.target_date}T12:00:00`):null;
-      const formattedDate=targetDate&&!Number.isNaN(targetDate.getTime())?new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'long',year:'numeric'}).format(targetDate):null;
-      document.getElementById('businessGoalDate').textContent=formattedDate?`Objectif au ${formattedDate}`:'Objectif de revenu personnel';
-      document.getElementById('businessGoalTitle').textContent=income>0?`Vivre de TESIGN : ${euro(income)} par mois pour moi`:'Vivre de TESIGN';
-      document.getElementById('businessGoalDescription').textContent=`${income>0?`Me verser un revenu personnel régulier de ${euro(income)} par mois`:'Construire un revenu personnel régulier'}, après les dépenses de TESIGN.${plan.target_context?` ${plan.target_context}${formattedDate?` : ${formattedDate}`:''}.`:formattedDate?` Échéance : ${formattedDate}.`:''}`;
-    }
     function render(d) {
-      renderBusinessPlan(d.business_plan||{});
       const t=d.totals, cumulative=d.cumulative?.totals||{}, cumulativeComplete=Boolean(d.cumulative?.is_complete);
       period.textContent=`${d.period.since} au ${d.period.until} (${d.period.days} jours)`;
       const sourceChecks=Object.entries(d.data_status||{}).filter(([,value])=>value?.checked_at).map(([key,value])=>`${({'shopify_orders':'Commandes Shopify','shopify_analytics':'Shopify Analytics','meta_account':'Meta compte','meta_campaigns':'Meta campagnes'})[key]||key} : ${timestampLabel(value.checked_at)} (${({'available':'lecture réussie','partial':'couverture partielle','unavailable':'indisponible','not_requested':'non interrogé'})[value.status]||'état inconnu'})`);
@@ -662,8 +475,7 @@
       if(t.geremy_commission_status==='unconfirmed')notices.push('Accord Geremy non confirmé : aucun montant dû ne peut être affirmé et aucune commission inconnue ne doit être assimilée à 0 €.');
       if(d.fixed_costs_metadata?.status==='unverified_config')notices.push('Charges fixes issues de la configuration : abonnements et montants actuels à confirmer.');
       warnings.innerHTML=[...new Set(notices)].map(w=>`<li>${esc(w)}</li>`).join('');
-      renderEvolution(d);
-      globalThis.TesignVision?.render(d);
+      drawChart(trendMonths);
       table('stock',['Produit','Taille / couleur','Origine','Statut','Initial','Restant','Shopify'],(d.stock||[]).map(r=>`<tr><td>${esc(r.product)}</td><td>${esc(r.variant)}</td><td>${esc(r.origin)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td><td>${number(r.initial)}</td><td>${number(r.remaining)}</td><td>${r.shopify_quantity==null?'Non lié':number(r.shopify_quantity)}</td></tr>`));
       table('orders',['Commande','Date','CA','Coûts estimés','Marge estimée','Articles'],(d.orders||[]).map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${euro(r.variable_costs)}</td><td class="${tone(r.margin)}">${euro(r.margin)}</td><td>${number(r.units)}</td></tr>`));
       table('daily',['Date','CA','Commandes','Marge estimée','Meta','Geremy','URSSAF estimée','MER global','ROAS Meta','Résultat estimé'],[...(d.daily||[])].reverse().map(r=>`<tr><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${number(r.orders)}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.ad_spend)}</td><td>${euro(r.geremy_commission)}</td><td>${euro(r.urssaf_estimated)}</td><td>${number(r.blended_roas)}</td><td>${number(r.meta_roas)}</td><td class="${tone(r.estimated_result)}">${euro(r.estimated_result)}</td></tr>`));
@@ -674,6 +486,18 @@
       catch(e){error.textContent=e.message;error.hidden=false} finally {refresh.disabled=false;refresh.textContent='Actualiser'}
     }
     refresh.onclick=()=>load(true); load(); setInterval(()=>load(false),300000);
+  </script>
+  <script>
+    // Keep the restored layout isolated from the current dashboard's styles.
+    if(window.parent !== window) {
+      let lastEnzoHeight=0;
+      const resizeEnzo=()=>{
+        const height=Math.ceil(document.body.getBoundingClientRect().height)+2;
+        if(height!==lastEnzoHeight){lastEnzoHeight=height;window.parent.postMessage({type:'tesign-enzo-height',height},location.origin)}
+      };
+      new ResizeObserver(resizeEnzo).observe(document.body);
+      window.addEventListener('load',resizeEnzo);
+    }
   </script>
 </body>
 </html>
