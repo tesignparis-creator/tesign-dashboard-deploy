@@ -2161,6 +2161,13 @@ def make_handler(cache: Cache):
         "true",
         "yes",
     }
+    # Serve only named dashboard assets; never resolve an arbitrary request path.
+    static_assets = {
+        "/static/favicon.png": ("favicon.png", "image/png"),
+        "/static/pilotage.css": ("pilotage.css", "text/css; charset=utf-8"),
+        "/static/vision.js": ("vision.js", "application/javascript; charset=utf-8"),
+        "/static/trajectory.js": ("trajectory.js", "application/javascript; charset=utf-8"),
+    }
 
     class Handler(BaseHTTPRequestHandler):
         def send_bytes(self, body: bytes, content_type: str, status: int = 200) -> None:
@@ -2177,10 +2184,11 @@ def make_handler(cache: Cache):
                 if parsed.path == "/":
                     self.send_bytes(HTML_PATH.read_bytes(), "text/html; charset=utf-8")
                     return
-                if parsed.path == "/static/favicon.png":
+                if parsed.path in static_assets:
+                    filename, content_type = static_assets[parsed.path]
                     self.send_bytes(
-                        (STATIC_PATH / "favicon.png").read_bytes(),
-                        "image/png",
+                        (STATIC_PATH / filename).read_bytes(),
+                        content_type,
                     )
                     return
                 if parsed.path in ("/api/dashboard", "/api/refresh"):

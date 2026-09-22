@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="icon" type="image/png" href="/static/favicon.png">
-  <title>Tesign - Pilotage stock et publicite</title>
+  <title>TESIGN — Vision & pilotage</title>
   <style>
     :root { --bg:#f3f1ec; --panel:#fff; --ink:#151515; --muted:#77736b; --line:#dedbd4; --good:#176b4d; --bad:#b44235; --accent:#d8ff42; }
     * { box-sizing:border-box; }
@@ -153,10 +153,11 @@
     @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.ai-grid,.trend-grid{grid-template-columns:repeat(2,1fr)} }
     @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .status{flex-direction:column;gap:6px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid,.todo-list,.ai-grid,.trend-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
   </style>
+  <link rel="stylesheet" href="/static/pilotage.css">
 </head>
 <body>
   <header>
-    <div><div class="eyebrow">Tesign / lecture seule</div><h1>Stock, marge & acquisition</h1></div>
+    <div><div class="eyebrow">TESIGN / Art is life.</div><h1>Vision & pilotage</h1></div>
     <div class="controls">
       <label>Depuis<input id="since" type="date"></label>
       <label>Jusqu'au<input id="until" type="date"></label>
@@ -256,6 +257,8 @@
     </section>
     <section class="panel hidden-panel" style="margin-top:12px"><h2>Performance quotidienne croisée</h2><p class="note">Repère de charges fixes configurées : <strong id="dailyFixed">-</strong> par jour moyen ; montants à confirmer.</p><div class="table-wrap"><table id="daily"></table></div></section>
   </main>
+  <script src="/static/trajectory.js"></script>
+  <script src="/static/vision.js"></script>
   <script>
     const numeric = v => v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
     const moneyFmt = (v,currency='EUR') => numeric(v) == null ? 'Indisponible' : new Intl.NumberFormat('fr-FR',{style:'currency',currency:currency||'EUR'}).format(Number(v));
@@ -264,7 +267,7 @@
     const tone = v => numeric(v) == null ? '' : Number(v) >= 0 ? 'positive' : 'negative';
     const totalKnown = (rows,key) => !rows.length || rows.some(row=>numeric(row[key])==null) ? null : rows.reduce((sum,row)=>sum+Number(row[key]),0);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const today = new Date(); const prior = new Date(today); prior.setDate(today.getDate()-90);
+    const today = new Date(); const prior = new Date(today); prior.setDate(1);
     const dateValue = d => d.toISOString().slice(0,10);
     const dateLabel = value => value ? new Intl.DateTimeFormat('fr-FR').format(new Date(`${value}T00:00:00`)) : '-';
     const timestampLabel = value => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toLocaleString('fr-FR') : 'date inconnue';
@@ -643,6 +646,7 @@
       if(d.fixed_costs_metadata?.status==='unverified_config')notices.push('Charges fixes issues de la configuration : abonnements et montants actuels à confirmer.');
       warnings.innerHTML=[...new Set(notices)].map(w=>`<li>${esc(w)}</li>`).join('');
       renderEvolution(d);
+      globalThis.TesignVision?.render(d);
       table('stock',['Produit','Taille / couleur','Origine','Statut','Initial','Restant','Shopify'],(d.stock||[]).map(r=>`<tr><td>${esc(r.product)}</td><td>${esc(r.variant)}</td><td>${esc(r.origin)}</td><td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td><td>${number(r.initial)}</td><td>${number(r.remaining)}</td><td>${r.shopify_quantity==null?'Non lié':number(r.shopify_quantity)}</td></tr>`));
       table('orders',['Commande','Date','CA','Coûts estimés','Marge estimée','Articles'],(d.orders||[]).map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${euro(r.variable_costs)}</td><td class="${tone(r.margin)}">${euro(r.margin)}</td><td>${number(r.units)}</td></tr>`));
       table('daily',['Date','CA','Commandes','Marge estimée','Meta','Geremy','URSSAF estimée','MER global','ROAS Meta','Résultat estimé'],[...(d.daily||[])].reverse().map(r=>`<tr><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${number(r.orders)}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.ad_spend)}</td><td>${euro(r.geremy_commission)}</td><td>${euro(r.urssaf_estimated)}</td><td>${number(r.blended_roas)}</td><td>${number(r.meta_roas)}</td><td class="${tone(r.estimated_result)}">${euro(r.estimated_result)}</td></tr>`));

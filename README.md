@@ -2,6 +2,14 @@
 
 Consultation seule : Shopify, Meta, coûts, stock et relevé professionnel daté.
 
+## Interface de pilotage
+
+Les onglets séparent la vue d'ensemble, la trajectoire de TESIGN et les détails opérationnels. La synthèse met en avant l'objectif de revenu personnel, les indicateurs de la période et les graphiques historiques. Les détails et limites des sources restent consultables avec les chiffres concernés.
+
+La trajectoire future est un scénario de travail estimatif, distinct des ventes constatées. Les hypothèses du simulateur sont sauvegardées dans le navigateur : elles ne modifient ni les ventes Shopify, ni les stocks, ni les budgets publicitaires réels. Le résultat simulé ne constitue pas une rémunération disponible ou un prévisionnel de trésorerie complet ; les commissions non confirmées, les achats de stock et les autres coûts manquants doivent encore être rapprochés.
+
+Les fichiers CSS et JavaScript du tableau de bord sont servis par une liste explicite de routes statiques ; aucun chemin de fichier arbitraire n'est exposé.
+
 ## Indicateurs corrigés — 18 septembre 2026
 
 - ROAS Meta = CA attribué Meta / dépenses Meta ; CPA Meta = dépenses / achats attribués.
