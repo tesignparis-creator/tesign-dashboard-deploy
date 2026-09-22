@@ -117,4 +117,51 @@ assert.equal(buildModel({ chart_history: { period: { since: '2025-02-30', until:
 const browser = {};
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../static/annual-summary.js'), 'utf8'), browser);
 assert.equal(typeof browser.TesignAnnualSummary.buildModel, 'function');
-console.log('Annual summary: all calculation, coverage, unknown-value and export checks passed.');
+// The home summary must keep costs from dates where Meta history is missing.
+const financialFixture = () => ({
+  chart_history: { period: { since: '2023-08-08', until: '2026-09-22' },
+    totals: { estimated_result_observed: 900 } },
+  totals: { contribution_margin: 999999, ad_spend: 1 }, // Selected filter is unrelated.
+  cumulative: {
+    period: { since: '2023-08-08', until: '2026-09-22' }, is_complete: false,
+    source_status: { shopify_orders: { status: 'available' }, meta_account: { status: 'partial' } },
+    meta_history_available_since: '2023-08-23', meta_history_truncated: true,
+    totals: { contribution_margin: 1000, ad_spend: null, ad_spend_observed: 700,
+      fixed_costs_prorated: 400, business_expenses: 10, geremy_commission_deducted: 0,
+      estimated_result_excludes_unconfirmed_commission: true, urssaf_estimated: 80 },
+  },
+  financial: { bank_accounts: [{ scope: 'business', is_demo: false, source: 'enable_banking_snapshot',
+    balance: 85.97, currency_code: 'EUR', recorded_at: '2026-09-18', stale: true }] },
+});
+let f = financialFixture(), finance = buildModel(f).financial;
+assert.equal(finance.result, -110, 'Calculate components, not the incomplete daily result sum; no second URSSAF deduction.');
+assert.equal(finance.adSpend, 700);
+assert.equal(finance.metaPartial, true);
+assert.equal(finance.commissionExcluded, true);
+assert.equal(finance.bank.balance, 85.97);
+assert.equal(finance.bank.recordedAt, '2026-09-18');
+assert.equal(finance.bank.datedSnapshot, true);
+f.cumulative.source_status.meta_account.status = 'unavailable';
+f.cumulative.totals.ad_spend_observed = 0;
+assert.equal(buildModel(f).financial.result, null, 'A connector failure is not zero advertising spend.');
+assert.equal(buildModel(f).financial.adSpend, null);
+f = financialFixture(); f.cumulative.totals.fixed_costs_prorated = null;
+assert.equal(buildModel(f).financial.result, null);
+f = financialFixture(); f.cumulative.period.since = '2026-09-01';
+assert.equal(buildModel(f).financial.result, null, 'Never mix financial periods.');
+f = financialFixture(); f.cumulative.source_status.shopify_orders.status = 'unavailable';
+assert.equal(buildModel(f).financial.result, null);
+f = financialFixture(); f.cumulative.totals.geremy_commission_deducted = 50;
+assert.equal(buildModel(f).financial.result, -160, 'Confirmed commission is deducted exactly once.');
+for (const accountChange of [{is_demo:true}, {scope:'personal'}, {source:'demo'}, {balance:null},
+  {currency_code:'USD'}, {recorded_at:null}, {recorded_at:'2026-09-23'}]) {
+  f = financialFixture(); Object.assign(f.financial.bank_accounts[0], accountChange);
+  assert.equal(buildModel(f).financial.bank.balance, null, JSON.stringify(accountChange));
+}
+f = financialFixture();
+f.financial.bank_accounts.push({...f.financial.bank_accounts[0], balance:20});
+assert.equal(buildModel(f).financial.bank.balance, 105.97);
+f.financial.bank_accounts[1].recorded_at = '2026-09-17';
+assert.equal(buildModel(f).financial.bank.balance, null, 'Do not sum account balances from different dates.');
+assert.equal(buildModel({}).financial.result, null);
+console.log('Annual summary: calculation, coverage, result bridge and dated business bank checks passed.');

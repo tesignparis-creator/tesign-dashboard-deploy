@@ -136,16 +136,16 @@
   function renderFuture(m){
     $('trajectoryTitle').textContent=`Viser ${eur(m.target.incomeMonthly)} par mois d’ici ${date(m.target.date)}`;
     $('trajectoryMetrics').innerHTML=[
-      metric('Commandes nécessaires / mois',m.calculable?num(m.monthly.targetOrders):'Non établi','Selon les hypothèses ci-dessous','Scénario'),
+      metric('Seuil de commandes / mois',m.calculable?num(m.monthly.targetOrders):'Non établi','Seuil calculé selon les hypothèses, pas une prévision de ventes','Scénario'),
       metric('CA mensuel correspondant',m.calculable?eur(m.monthly.targetRevenue):'Non établi','Une commande = un t-shirt ; port inclus'),
       metric('Contribution par commande',eur(m.unit.weightedContribution),'Après coûts unitaires et livraison, avant pub et fixes')].join('');
     $('trajectoryBaseline').textContent=`Base : ${num(m.baseline.ordersMonthly)} commandes / mois. ${m.baseline.sourceLabel}${m.baseline.months.length?` (${m.baseline.months.map(month).join(', ')})`:''}.`;
     drawTrajectory(m);
-    $('scenarioDisclosure').textContent=m.missing.length?m.missing.join(' '):`Ce scénario est indicatif. Charges fixes : ${eur(m.monthly.fixedCosts)}/mois, montant configuré à confirmer. Les commissions non renseignées, l’impôt personnel et les besoins réels de trésorerie peuvent relever l’objectif. Une réserve à 0 € n’établit pas l’absence de besoin.`;
+    $('scenarioDisclosure').textContent=m.missing.length?m.missing.join(' '):`Le seuil de commandes est calculé selon les hypothèses ci-dessus : ce n’est pas une prévision de ventes. Charges fixes : ${eur(m.monthly.fixedCosts)}/mois, montant configuré à confirmer. Les commissions non renseignées, l’impôt personnel et les besoins réels de trésorerie peuvent relever l’objectif. Une réserve à 0 € n’établit pas l’absence de besoin.`;
     $('scenarioMethod').innerHTML=`<p>Commandes cibles = (objectif personnel + charges fixes + publicité + charges complémentaires + réserve) ÷ contribution par commande, arrondi au supérieur. Coûts unitaires déclarés le ${safe(date(m.unit.reportedAt))}.</p><ul>${m.warnings.map(w=>`<li>${safe(w)}</li>`).join('')}</ul>`;
     $('trajectoryTable').innerHTML='<thead><tr><th>Mois</th><th>Commandes visées</th><th>CA indicatif</th><th>Reste partiel après réserve</th></tr></thead><tbody>'+m.trajectory.map(r=>`<tr><td>${safe(month(r.month))}</td><td>${num(r.orders)}</td><td>${eur(r.revenue)}</td><td>${eur(r.availableAfterReserve)}</td></tr>`).join('')+'</tbody>';
     $('roadmapBreakEven').textContent=`Repère du scénario : ${num(m.monthly.breakEvenOrders)} commandes/mois pour couvrir les charges incluses, hors revenu et réserve.`;
-    $('roadmapTarget').textContent=`Repère du scénario : ${num(m.monthly.targetOrders)} commandes/mois à l’échéance, avec trésorerie vérifiée.`;
+    $('roadmapTarget').textContent=`Seuil calculé selon les hypothèses : ${num(m.monthly.targetOrders)} commandes/mois à l’échéance. Pas une prévision de ventes ; trésorerie à vérifier.`;
   }
   function render(d){
     data=d;const m=globalThis.TesignTrajectory.buildModel(d,inputs);

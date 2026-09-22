@@ -163,6 +163,7 @@
       ? Object.fromEntries(METRICS.map(key => [key, finite(totalsSource[key])])) : sumRows(years);
     return {
       totals: withRate(totals), years,
+      financial: financialSummary(data),
       coverage: {
         since, until, generatedAt: history.generated_at || null,
         shopifyComplete: history.shopify_history_complete === true,
@@ -176,5 +177,46 @@
       revenueBasis: history.revenue_basis || 'Valeur actuelle des commandes Shopify, port inclus, rattachée à leur date de création.',
     };
   }
-  return { buildModel, percentChange, METRICS };
+  function financialSummary(data) {
+    const cumulative = data.cumulative || {}, totals = cumulative.totals || {};
+    const historyPeriod = data.chart_history?.period || {}, period = cumulative.period || {};
+    const aligned = !!isoDate(period.since) && !!isoDate(period.until) &&
+      period.since === historyPeriod.since && period.until === historyPeriod.until;
+    const status = cumulative.source_status || {}, metaStatus = status.meta_account?.status;
+    // A failed Meta connector can leave an initialized zero in the observed field.
+    const metaKnown = aligned && ['available', 'partial'].includes(metaStatus);
+    const adSpend = metaKnown ? finite(totals.ad_spend) ?? finite(totals.ad_spend_observed) : null;
+    const components = {
+      margin: aligned && status.shopify_orders?.status === 'available' ? finite(totals.contribution_margin) : null,
+      advertising: adSpend,
+      fixed: aligned ? finite(totals.fixed_costs_prorated) : null,
+      other: aligned ? finite(totals.business_expenses) : null,
+      commission: aligned ? finite(totals.geremy_commission_deducted) : null,
+    };
+    // Summing daily results drops known costs on dates with unknown advertising.
+    // Keep all known components, and explicitly label the remaining scope partial.
+    const result = Object.values(components).every(value => value !== null)
+      ? round(components.margin - components.advertising - components.fixed - components.other - components.commission) : null;
+    const accounts = (Array.isArray(data.financial?.bank_accounts) ? data.financial.bank_accounts : [])
+      .filter(a => a.scope === 'business' && !a.is_demo && !/demo|sandbox/i.test(a.source || ''));
+    const datedAccounts = accounts.length > 0 && accounts.every(a =>
+      finite(a.balance) !== null && a.currency_code === 'EUR' && isoDate(a.recorded_at) &&
+      isoDate(historyPeriod.until) && a.recorded_at <= historyPeriod.until);
+    const dates = new Set(accounts.map(a => a.recorded_at));
+    const bankKnown = datedAccounts && dates.size === 1;
+    return {
+      result, components, adSpend, asOf: aligned ? period.until : null,
+      isPartial: cumulative.is_complete !== true,
+      metaPartial: metaStatus === 'partial' || cumulative.meta_history_truncated === true,
+      metaSince: isoDate(cumulative.meta_history_available_since) || isoDate(status.meta_account?.available_since),
+      commissionExcluded: totals.estimated_result_excludes_unconfirmed_commission === true,
+      bank: {
+        balance: bankKnown ? round(accounts.reduce((sum, a) => sum + a.balance, 0)) : null,
+        recordedAt: bankKnown ? accounts[0].recorded_at : null,
+        count: accounts.length,
+        datedSnapshot: bankKnown && accounts.some(a => a.stale || a.source === 'manual' || /snapshot$/.test(a.source || '')),
+      },
+    };
+  }
+  return { buildModel, financialSummary, percentChange, METRICS };
 });
