@@ -2167,6 +2167,9 @@ def make_handler(cache: Cache):
         "/static/pilotage.css": ("pilotage.css", "text/css; charset=utf-8"),
         "/static/vision.js": ("vision.js", "application/javascript; charset=utf-8"),
         "/static/trajectory.js": ("trajectory.js", "application/javascript; charset=utf-8"),
+        "/static/annual-summary.js": ("annual-summary.js", "application/javascript; charset=utf-8"),
+        "/static/annual-forecast.js": ("annual-forecast.js", "application/javascript; charset=utf-8"),
+        "/static/annual-view.js": ("annual-view.js", "application/javascript; charset=utf-8"),
     }
 
     class Handler(BaseHTTPRequestHandler):

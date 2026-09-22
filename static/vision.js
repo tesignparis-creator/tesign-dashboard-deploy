@@ -16,6 +16,8 @@
   function selectPane(name, focus=false) {
     if (!['overview','history','future','details'].includes(name)) name='overview';
     currentPane=name;
+    document.querySelectorAll('header .controls label').forEach(label=>label.hidden=name!=='details');
+    if($('period'))$('period').hidden=name!=='details';
     document.querySelectorAll('.vision-pane').forEach(p => {p.hidden=p.id!==`view-${name}`});
     document.querySelectorAll('.vision-nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===name)));
     if(focus) {$(`view-${name}`).focus({preventScroll:true}); window.scrollTo({top:0,behavior:'smooth'})}
@@ -28,7 +30,7 @@
   function init() {
     const main=document.querySelector('main'), original=[...main.children];
     const nav=document.createElement('nav');nav.className='vision-nav';nav.setAttribute('aria-label','Vues du tableau de bord');
-    nav.innerHTML=[['overview','Vue d’ensemble'],['history','Évolution'],['future','Cap 2027'],['details','Gestion & sources']].map(([id,label])=>`<button type="button" data-view="${id}" aria-controls="view-${id}" aria-pressed="${id==='overview'}">${label}</button>`).join('');
+    nav.innerHTML=[['overview','L’essentiel'],['history','Historique détaillé'],['future','Cap 2027'],['details','Gestion & sources']].map(([id,label])=>`<button type="button" data-view="${id}" aria-controls="view-${id}" aria-pressed="${id==='overview'}">${label}</button>`).join('');
     main.before(nav);
     nav.addEventListener('click',event=>{const b=event.target.closest('[data-view]');if(b)selectPane(b.dataset.view)});
     ['overview','history','future','details'].forEach(name=>{
@@ -69,6 +71,10 @@
       <details class="scenario-detail"><summary>Comprendre le calcul et ses limites</summary><div id="scenarioMethod"></div></details>
       <div class="section-title"><h2>Une progression en trois étapes</h2><p>Ordre de travail proposé · pas un calendrier déjà engagé</p></div>
       <div class="roadmap"><article><span class="eyebrow">01 / FIABILISER</span><h3>Connaître la marge réelle</h3><p>Rapprocher le stock, les coûts livrés de la production et les charges. Confirmer les commissions.</p><strong>Repère : un coût complet par pièce vendue.</strong></article><article><span class="eyebrow">02 / RENDRE RÉGULIER</span><h3>Répéter ce qui vend</h3><p>Tester les contenus TikTok et appliquer LiveMentor. Suivre les commandes et la contribution après acquisition.</p><strong id="roadmapBreakEven">Repère : couvrir les charges chaque mois.</strong></article><article><span class="eyebrow">03 / CONSOLIDER</span><h3>Financer un revenu personnel</h3><p>Atteindre le volume cible plusieurs mois de suite et conserver la trésorerie nécessaire aux commandes et au stock.</p><strong id="roadmapTarget">Repère : un revenu durable à l’échéance.</strong></article></div>`;
+    // Keep the goal and the roadmap in their own view; lead with the actual history.
+    $('view-future').prepend(document.querySelector('.overview-hero'));
+    $('view-future').append(document.querySelector('.levers'));
+    globalThis.TesignAnnualView.init();
     const detail=$('view-details');detail.innerHTML='<div class="pane-intro"><h2>Gestion & sources</h2><p>Les données détaillées restent disponibles ici : trésorerie, stock, acquisition et hypothèses de calcul.</p></div>';
     const section=id=>$(id)?.closest('section');
     fold(detail,'Trésorerie professionnelle',[section('bankAccounts')],true);
@@ -95,6 +101,7 @@
       if(data)render(data);
     }));
     $('scenarioReset').onclick=()=>{inputs={};try{localStorage.removeItem(key)}catch(_){}fillInputs();if(data)render(data)};
+    selectPane('overview');
   }
   function drawBars(id,rows,valueKey,signed=false){
     const el=$(id); const vals=rows.map(r=>r[valueKey]).filter(known);
@@ -141,19 +148,10 @@
     $('roadmapTarget').textContent=`Repère du scénario : ${num(m.monthly.targetOrders)} commandes/mois à l’échéance, avec trésorerie vérifiée.`;
   }
   function render(d){
-    data=d;const m=globalThis.TesignTrajectory.buildModel(d,inputs),t=d.totals||{};
-    const bank=(d.financial?.bank_accounts||[]).find(a=>known(a.balance)&&!a.is_demo&&!/sandbox|demo/.test(a.source||''));
+    data=d;const m=globalThis.TesignTrajectory.buildModel(d,inputs);
     $('visionTargetDate').textContent=`Objectif au ${date(m.target.date)}`;
     $('visionIncome').innerHTML=`${safe(eur(m.target.incomeMonthly))} <small>/ mois</small>`;
-    $('overviewPeriod').textContent=`Période sélectionnée : ${date(d.period?.since)} → ${date(d.period?.until)}`;
-    const resultIncomplete=!(d.cumulative?.shopify_history_complete??d.cumulative?.is_complete)&&d.period?.days>180;
-    $('overviewMetrics').innerHTML=[
-      metric('Chiffre d’affaires',eur(t.revenue),'Ventes Shopify · livraison incluse'),
-      metric('Commandes Shopify',num(t.orders),'Commandes avec paiements, retours inclus'),
-      metric('Résultat de la période',resultIncomplete?'À recalculer':eur(t.estimated_result),resultIncomplete?'Historique Shopify incomplet sur la période':'Coûts renseignés, avant coûts inconnus','Partiel',!resultIncomplete&&known(t.estimated_result)&&t.estimated_result<0?'negative':''),
-      metric('Dernier solde professionnel',eur(bank?.balance),bank?`Relevé du ${date(bank.recorded_at||bank.updated_at)} · pas du bénéfice disponible`:'Compte professionnel non disponible','Daté')].join('');
-    drawBars('overviewRevenue',m.actual.slice(-6),'revenue');drawBars('overviewResult',m.actual.slice(-6),'estimatedResult',true);
-    $('overviewInsight').innerHTML=`<strong>Le prochain palier.</strong> ${m.calculable?`Le scénario affiché nécessite ${safe(num(m.monthly.targetOrders))} commandes mensuelles pour viser ton revenu. Le rythme observé est de ${safe(num(m.baseline.ordersMonthly))} commandes par mois (${safe(m.baseline.months.map(month).join(', '))}).`:'Compléter les données de coûts et l’objectif permettra de chiffrer le prochain palier.'} Consolider la marge et des ventes régulières avant d’augmenter les dépenses. <span class="small-badge">Hypothèses à valider</span>`;
+    globalThis.TesignAnnualView.render(d,m);
     $('qualityLabel').textContent=`Sources & limites · résultat partiel · solde bancaire daté · stock à rapprocher · ${$('warnings').children.length} points de lecture`;
     renderFuture(m);
   }

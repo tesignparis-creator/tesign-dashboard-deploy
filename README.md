@@ -4,6 +4,10 @@ Consultation seule : Shopify, Meta, coûts, stock et relevé professionnel daté
 
 ## Interface de pilotage
 
+L’essentiel affiche trois cumuls depuis le début de l’historique Shopify (CA, commandes, marge contributive estimée), puis un seul graphique couvrant toutes les années. Les euros et le nombre de commandes ont deux axes explicitement distincts. Le tableau sous le graphique fournit les valeurs et les variations annuelles ; l’année en cours est comparée aux mêmes dates de l’année précédente, jamais à son total annuel complet. La marge est calculée avant publicité et charges fixes, pas assimilée au bénéfice net.
+
+La projection 2027 hachurée est une référence historique : moyenne des trois dernières années éligibles, dont l’année courante ramenée sur une année entière au rythme journalier observé. Les bornes sont le minimum et le maximum de ces trois repères, pas un intervalle de confiance. L’année de lancement incomplète est exclue de ce calcul. Les objectifs personnels et hypothèses d’action restent séparés dans Cap 2027 et n’influencent pas cette projection. Les coûts historiques restent estimatifs ; saisonnalité et effets des actions futures ne sont pas prédits.
+
 Les onglets séparent la vue d'ensemble, la trajectoire de TESIGN et les détails opérationnels. La synthèse met en avant l'objectif de revenu personnel, les indicateurs de la période et les graphiques historiques. Les détails et limites des sources restent consultables avec les chiffres concernés.
 
 La trajectoire future est un scénario de travail estimatif, distinct des ventes constatées. Les hypothèses du simulateur sont sauvegardées dans le navigateur : elles ne modifient ni les ventes Shopify, ni les stocks, ni les budgets publicitaires réels. Le résultat simulé ne constitue pas une rémunération disponible ou un prévisionnel de trésorerie complet ; les commissions non confirmées, les achats de stock et les autres coûts manquants doivent encore être rapprochés.

@@ -157,7 +157,7 @@
 </head>
 <body>
   <header>
-    <div><div class="eyebrow">TESIGN / Art is life.</div><h1>Vision & pilotage</h1></div>
+    <div><div class="eyebrow">TESIGN / Art is life.</div><h1>TESIGN en chiffres</h1></div>
     <div class="controls">
       <label>Depuis<input id="since" type="date"></label>
       <label>Jusqu'au<input id="until" type="date"></label>
@@ -258,6 +258,9 @@
     <section class="panel hidden-panel" style="margin-top:12px"><h2>Performance quotidienne croisée</h2><p class="note">Repère de charges fixes configurées : <strong id="dailyFixed">-</strong> par jour moyen ; montants à confirmer.</p><div class="table-wrap"><table id="daily"></table></div></section>
   </main>
   <script src="/static/trajectory.js"></script>
+  <script src="/static/annual-summary.js"></script>
+  <script src="/static/annual-forecast.js"></script>
+  <script src="/static/annual-view.js"></script>
   <script src="/static/vision.js"></script>
   <script>
     const numeric = v => v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
