@@ -2167,6 +2167,7 @@ def make_handler(cache: Cache):
         "/static/favicon.png": ("favicon.png", "image/png"),
         "/static/pilotage.css": ("pilotage.css", "text/css; charset=utf-8"),
         "/static/vision.js": ("vision.js", "application/javascript; charset=utf-8"),
+        "/static/loading.js": ("loading.js", "application/javascript; charset=utf-8"),
         "/static/trajectory.js": ("trajectory.js", "application/javascript; charset=utf-8"),
         "/static/annual-summary.js": ("annual-summary.js", "application/javascript; charset=utf-8"),
         "/static/annual-forecast.js": ("annual-forecast.js", "application/javascript; charset=utf-8"),

@@ -22,6 +22,7 @@
     document.querySelectorAll('.vision-nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===name)));
     document.querySelector('header .controls').hidden=name==='enzo';
     document.querySelector('main > .status').hidden=name==='enzo';
+    $('loadingState').classList.toggle('other-view-loading',name==='enzo');
     if($('qualityDetails'))$('qualityDetails').hidden=name==='enzo';
     if(name==='enzo') {
       const frame=$('enzoFrame');

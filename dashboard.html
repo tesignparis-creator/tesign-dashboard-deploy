@@ -152,6 +152,12 @@
     @media(max-width:650px) { .chart-panel{padding:14px}.chart-heading{flex-wrap:wrap}.capital-cards{grid-template-columns:1fr}.evolution-head h2{font-size:22px}.chart-total{font-size:25px}.chart-controls{width:100%}.chart-controls label{flex:1} }
     @media(max-width:1100px) { .cards,.bank-grid{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.ai-grid,.trend-grid{grid-template-columns:repeat(2,1fr)} }
     @media(max-width:650px) { header{align-items:start;flex-direction:column;padding:20px} main{padding:16px} .status{flex-direction:column;gap:6px} .cards,.bank-grid,.kpi-grid,.kpi-grid.sales,.kpi-grid.meta,.margin-grid,.todo-list,.ai-grid,.trend-grid{grid-template-columns:1fr} .card.primary{grid-column:span 1} .todo-head,.todo-actions{align-items:stretch;flex-direction:column}.todo-actions input{min-width:0}.todo-item{grid-template-columns:1fr} }
+    .load-state { padding:24px; margin:0 0 24px; border:1px solid var(--line); border-left:4px solid var(--good); border-radius:12px; background:var(--panel); }
+    .load-state strong { display:block; font-size:20px; }
+    .load-state p { max-width:680px; margin:8px 0 0; color:var(--muted); }
+    .load-state button { margin-top:14px; }
+    .load-state[data-state="error"] { border-left-color:var(--bad); }
+    .load-state.other-view-loading { display:none; }
   </style>
   <link rel="stylesheet" href="/static/pilotage.css">
 </head>
@@ -166,6 +172,7 @@
   </header>
   <div id="error" class="error" hidden></div>
   <main>
+    <div id="loadingState" class="load-state" role="status" aria-live="polite"><strong id="loadingTitle">Chargement de tes chiffres…</strong><p id="loadingMessage">Nous récupérons les ventes, les dépenses publicitaires et l’historique de TESIGN. Les chiffres et les graphiques vont apparaître ici.</p><button id="loadingRetry" type="button" hidden>Réessayer</button></div>
     <div class="status"><span id="period"></span><span id="updated"></span></div>
     <ul id="warnings" class="warnings" aria-label="Limites des données"></ul>
     <section id="cards" class="cards"></section>
@@ -257,6 +264,7 @@
     </section>
     <section class="panel hidden-panel" style="margin-top:12px"><h2>Performance quotidienne croisée</h2><p class="note">Repère de charges fixes configurées : <strong id="dailyFixed">-</strong> par jour moyen ; montants à confirmer.</p><div class="table-wrap"><table id="daily"></table></div></section>
   </main>
+  <script src="/static/loading.js"></script>
   <script src="/static/trajectory.js"></script>
   <script src="/static/annual-summary.js"></script>
   <script src="/static/annual-forecast.js"></script>
@@ -668,10 +676,10 @@
       table('orders',['Commande','Date','CA','Coûts estimés','Marge estimée','Articles'],(d.orders||[]).map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${euro(r.variable_costs)}</td><td class="${tone(r.margin)}">${euro(r.margin)}</td><td>${number(r.units)}</td></tr>`));
       table('daily',['Date','CA','Commandes','Marge estimée','Meta','Geremy','URSSAF estimée','MER global','ROAS Meta','Résultat estimé'],[...(d.daily||[])].reverse().map(r=>`<tr><td>${esc(r.date)}</td><td>${euro(r.revenue)}</td><td>${number(r.orders)}</td><td>${euro(r.contribution_margin)}</td><td>${euro(r.ad_spend)}</td><td>${euro(r.geremy_commission)}</td><td>${euro(r.urssaf_estimated)}</td><td>${number(r.blended_roas)}</td><td>${number(r.meta_roas)}</td><td class="${tone(r.estimated_result)}">${euro(r.estimated_result)}</td></tr>`));
     }
+    let dashboardLoader;
     async function load(force=false) {
-      error.hidden=true; refresh.disabled=true; refresh.textContent='Chargement...';
-      try { const path=force?'/api/refresh':'/api/dashboard'; const res=await fetch(`${path}?since=${since.value}&until=${until.value}`); const data=await res.json(); if(!res.ok)throw new Error(data.error||'Erreur inconnue'); render(data); }
-      catch(e){error.textContent=e.message;error.hidden=false} finally {refresh.disabled=false;refresh.textContent='Actualiser'}
+      dashboardLoader ||= globalThis.TesignLoader.create({render,since,until,refresh,error});
+      return dashboardLoader.load(force);
     }
     refresh.onclick=()=>load(true); load(); setInterval(()=>load(false),300000);
   </script>

@@ -16,6 +16,8 @@ La trajectoire future est un scénario de travail estimatif, distinct des ventes
 
 Les fichiers CSS et JavaScript du tableau de bord sont servis par une liste explicite de routes statiques ; aucun chemin de fichier arbitraire n'est exposé.
 
+Le premier chargement affiche un état d’attente explicite dans les deux vues. Après 12 secondes, il explique que les sources répondent lentement. Une requête est interrompue après 180 secondes et propose « Réessayer » ; les chiffres déjà rendus restent visibles en cas d’échec d’actualisation. Les requêtes concurrentes d’une même vue sont ignorées. Aucun chiffre financier n’est enregistré dans le navigateur pour ce mécanisme. Il clarifie l’attente sans modifier le temps de réponse des connecteurs ni le réveil de l’hébergement.
+
 ## Espace Enzo
 
 L’onglet Enzo (`/#enzo`, ou `/enzo` en pleine page) conserve la présentation « Stock, marge & acquisition » issue de `c0dfb5d`, avant la refonte de navigation. Ses styles et graphiques sont isolés de l’interface actuelle. Il interroge les sources actuelles via la même API, avec les corrections financières du 18 septembre ; ce n’est pas une capture de chiffres historiques. Les limites des sources restent consultables en haut de la page.
